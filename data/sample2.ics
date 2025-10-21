@@ -3,7 +3,7 @@ VERSION:2.0
 CALSCALE:GREGORIAN
 
 BEGIN:VEVENT
-UID:class1-math@ku.edu #unique identifier for the event
+UID:class1-math@ku.edu
 SUMMARY:Calculus I
 DTSTART;TZID=America/Chicago:20251020T090000
 DTEND;TZID=America/Chicago:20251020T101500

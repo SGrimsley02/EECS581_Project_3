@@ -1,0 +1,42 @@
+# This is solely for understanding an ics file structure and content.
+# Do not use (export/import) this file directly.
+
+BEGIN:VCALENDAR     #beginning of calendar file
+VERSION:2.0         #always 2.0 for google, outlook, apple calendar
+CALSCALE:GREGORIAN  #defines calendar system (Gregorian=default-worldwide)
+PRODID:-//Google Inc//Google Calendar 70.9054//EN       #product identifier(which software/system created calendar)
+
+BEGIN:VEVENT        #beginning of event
+UID:class1-math@ku.edu #unique identifier - could keep the @domain or remove it but it has to be unique or it will overwrite each other
+SUMMARY:Research Meeting                       #event title (UTF-8 characters allowed)
+DTSTART;TZID=America/Chicago:20251023T110000   #event start time = IANA time zone : date + time (YYYYMMDDTHHMMSS) (T separates date and time)
+DTEND;TZID=America/Chicago:20251023T120000     #event end time = IANA time zone : date + time (YYYYMMDDTHHMMSS) (T separates date and time)
+LOCATION:LEEP2 Rm G411
+DESCRIPTION: Just a regular research meeting at LEEP2\\nBring your notes.
+STATUS:CONFIRMED                #event status (TENTATIVE, CONFIRMED, CANCELLED)
+SEQUENCE:3                      #revision number of the event (first creation = 0)
+BEGIN:VALARM                    #beginning of alarm/reminder
+TRIGGER:-PT10M                  #alarm trigger time (PT = period of time, - = before event, 10M = 10 minutes)
+DESCRIPTION:Research Meeting Reminder
+ACTION:DISPLAY                  #alarm action (DISPLAY = show a popup, EMAIL = send email, AUDIO = play sound)
+END:VALARM                      #end of alarm/reminder
+END:VEVENT                      #end of event
+
+BEGIN:VEVENT
+SUMMARY:Dinner with friends
+DTSTART;TZID=America/Chicago:20251024T180000
+DURATION:PT1H30M
+LOCATION:Red Pepper
+DESCRIPTION:Chongqing spicy chicken! heheheheheee
+STATUS:CONFIRMED
+SEQUENCE:3
+BEGIN:VALARM
+TRIGGER:-PT30M
+DESCRIPTION:Dinner with friends Reminder
+ACTION:EMAIL
+SUMMARY:Dinner with friends Reminder
+ATTENDEE;RSVP=TRUE:mailto:reenyhuang@gmail.com
+END:VALARM
+END:VEVENT
+
+END:VCALENDAR

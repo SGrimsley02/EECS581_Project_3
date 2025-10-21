@@ -1,10 +1,10 @@
 BEGIN:VCALENDAR
 VERSION:2.0
 CALSCALE:GREGORIAN
-PRODID:-//Google Inc//Google Calendar 70.9054//EN #product identifier(which software/system created calendar)
+PRODID:-//Google Inc//Google Calendar 70.9054//EN
 
 BEGIN:VEVENT
-UID:workday@mycompany.com #could keep the @domain or remove it but it has to be unique or it will overwrite each other
+UID:workday@mycompany.com
 SUMMARY:Workday
 DTSTART;TZID=America/Chicago:20251020T090000
 DTEND;TZID=America/Chicago:20251020T170000
