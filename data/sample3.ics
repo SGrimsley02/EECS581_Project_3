@@ -1,0 +1,86 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+CALSCALE:GREGORIAN
+PRODID:-//Google Inc//Google Calendar 70.9054//EN #product identifier(which software/system created calendar)
+
+BEGIN:VEVENT
+UID:workday@mycompany.com #could keep the @domain or remove it but it has to be unique or it will overwrite each other
+SUMMARY:Workday
+DTSTART;TZID=America/Chicago:20251020T090000
+DTEND;TZID=America/Chicago:20251020T170000
+RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR
+LOCATION:Company HQ – Office 401
+DESCRIPTION:Standard work hours for full-time employee. Includes team meetings, individual work, and project tasks.
+STATUS:CONFIRMED
+BEGIN:VALARM
+TRIGGER:-PT30M
+DESCRIPTION:Workday starts in 30 minutes.
+ACTION:DISPLAY
+END:VALARM
+END:VEVENT
+
+BEGIN:VEVENT
+UID:team-meeting@mycompany.com
+SUMMARY:Weekly Team Meeting
+DTSTART;TZID=America/Chicago:20251021T100000
+DTEND;TZID=America/Chicago:20251021T110000
+RRULE:FREQ=WEEKLY;BYDAY=TU
+LOCATION:Conference Room B / Zoom Link
+DESCRIPTION:Project status updates, task assignments, and sprint reviews.
+STATUS:CONFIRMED
+BEGIN:VALARM
+TRIGGER:-PT15M
+DESCRIPTION:Team meeting starts in 15 minutes.
+ACTION:DISPLAY
+END:VALARM
+END:VEVENT
+
+BEGIN:VEVENT
+UID:lunch-break@mycompany.com
+SUMMARY:Lunch Break
+DTSTART;TZID=America/Chicago:20251020T120000
+DTEND;TZID=America/Chicago:20251020T130000
+RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR
+LOCATION:Cafeteria or nearby restaurant
+DESCRIPTION:One-hour lunch break.
+STATUS:CONFIRMED
+BEGIN:VALARM
+TRIGGER:-PT5M
+DESCRIPTION:Lunch break in 5 minutes.
+ACTION:DISPLAY
+END:VALARM
+END:VEVENT
+
+BEGIN:VEVENT
+UID:one-on-one@mycompany.com
+SUMMARY:One-on-One with Manager
+DTSTART;TZID=America/Chicago:20251023T140000
+DTEND;TZID=America/Chicago:20251023T143000
+RRULE:FREQ=WEEKLY;BYDAY=TH
+LOCATION:Manager’s Office / Google Meet
+DESCRIPTION:Weekly check-in to discuss progress, blockers, and goals.
+STATUS:CONFIRMED
+BEGIN:VALARM
+TRIGGER:-PT10M
+DESCRIPTION:One-on-one meeting in 10 minutes.
+ACTION:DISPLAY
+END:VALARM
+END:VEVENT
+
+BEGIN:VEVENT
+UID:coffee-break@mycompany.com
+SUMMARY:Afternoon Coffee Break
+DTSTART;TZID=America/Chicago:20251020T153000
+DTEND;TZID=America/Chicago:20251020T154500
+RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR
+LOCATION:Break Room
+DESCRIPTION:Short afternoon break to rest and refresh.
+STATUS:CONFIRMED
+BEGIN:VALARM
+TRIGGER:-PT5M
+DESCRIPTION:Coffee break in 5 minutes.
+ACTION:DISPLAY
+END:VALARM
+END:VEVENT
+
+END:VCALENDAR

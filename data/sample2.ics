@@ -1,0 +1,85 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+CALSCALE:GREGORIAN
+
+BEGIN:VEVENT
+UID:class1-math@ku.edu #unique identifier for the event
+SUMMARY:Calculus I
+DTSTART;TZID=America/Chicago:20251020T090000
+DTEND;TZID=America/Chicago:20251020T101500
+RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR
+LOCATION:Engineering Building Room 204
+DESCRIPTION:Morning lecture on differential calculus concepts and problem solving.
+STATUS:CONFIRMED
+BEGIN:VALARM
+TRIGGER:-PT15M
+DESCRIPTION:Calculus I starts in 15 minutes.
+ACTION:DISPLAY
+END:VALARM
+END:VEVENT
+
+BEGIN:VEVENT
+UID:class2-physics@ku.edu
+SUMMARY:Physics II – Electricity and Magnetism
+DTSTART;TZID=America/Chicago:20251020T103000
+DTEND;TZID=America/Chicago:20251020T114500
+RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR
+LOCATION:Science Hall Room 118
+DESCRIPTION:Lecture covering electromagnetism, circuits, and related lab discussions.
+STATUS:CONFIRMED
+BEGIN:VALARM
+TRIGGER:-PT10M
+DESCRIPTION:Physics II starts in 10 minutes.
+ACTION:DISPLAY
+END:VALARM
+END:VEVENT
+
+BEGIN:VEVENT
+UID:class3-cs@ku.edu
+SUMMARY:Introduction to Programming
+DTSTART;TZID=America/Chicago:20251020T130000
+DTEND;TZID=America/Chicago:20251020T144500
+RRULE:FREQ=WEEKLY;BYDAY=TU,TH
+LOCATION:Computer Science Lab Room 310
+DESCRIPTION:Hands-on coding sessions in Python. Bring laptop and course materials.
+STATUS:CONFIRMED
+BEGIN:VALARM
+TRIGGER:-PT20M
+DESCRIPTION:Programming lab starts in 20 minutes.
+ACTION:DISPLAY
+END:VALARM
+END:VEVENT
+
+BEGIN:VEVENT
+UID:lunch-break@ku.edu
+SUMMARY:Lunch Break
+DTSTART;TZID=America/Chicago:20251020T120000
+DTEND;TZID=America/Chicago:20251020T125000
+RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR
+LOCATION:Student Union Cafeteria
+DESCRIPTION:Free period between morning and afternoon classes.
+STATUS:CONFIRMED
+BEGIN:VALARM
+TRIGGER:-PT5M
+DESCRIPTION:Lunch break in 5 minutes.
+ACTION:DISPLAY
+END:VALARM
+END:VEVENT
+
+BEGIN:VEVENT
+UID:study-session@ku.edu
+SUMMARY:Study / Homework Time
+DTSTART;TZID=America/Chicago:20251020T150000
+DTEND;TZID=America/Chicago:20251020T163000
+RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR
+LOCATION:Library – Quiet Study Zone
+DESCRIPTION:Dedicated post-class study session to review materials and assignments.
+STATUS:CONFIRMED
+BEGIN:VALARM
+TRIGGER:-PT10M
+DESCRIPTION:Study session starts in 10 minutes.
+ACTION:DISPLAY
+END:VALARM
+END:VEVENT
+
+END:VCALENDAR
