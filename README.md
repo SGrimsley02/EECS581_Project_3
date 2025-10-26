@@ -9,3 +9,8 @@ Automated Scheduler
 * Ics
 * Pytz
 
+## Getting Started
+
+To start the web app:
+
+    From the base directory, run python3 auto_scheduler/manage.py runserver.
