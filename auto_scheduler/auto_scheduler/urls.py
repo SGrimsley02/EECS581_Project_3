@@ -23,5 +23,6 @@ from django.urls import path, include
 
 urlpatterns = [
     path('', include('apps.import_events.urls')),
+    path('', include('apps.export_events.urls')),
     path('admin/', admin.site.urls),
 ]
