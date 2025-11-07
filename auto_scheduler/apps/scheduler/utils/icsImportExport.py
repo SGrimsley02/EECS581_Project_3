@@ -12,7 +12,7 @@ from datetime import datetime
 from ics import Calendar, Event
 import pytz
 
-def export_ics(events, file_path):
+def export_ics(events): # TODO: modify to export from database
     """
     Exports a list of events to an ICS file.
     Parameters:
@@ -35,11 +35,10 @@ def export_ics(events, file_path):
 
         # Add event to calendar
         calendar.events.add(ics_event)
-    # Write to ICS file
-    with open(file_path, "w") as ics_file:
-        ics_file.writelines(calendar.serialize_iter())
 
-def import_ics(file_path):
+    return calendar.serialize_iter() # serialize_iter in case file gets large
+
+def import_ics(file_path): # TODO: modify to import into database
     """
     Imports events from an ICS file and returns them as a list of dictionaries.
     Paremeters:
@@ -68,5 +67,5 @@ def import_ics(file_path):
 # sample2_events = import_ics("data/sample2.ics")
 # print("Imported Events:", sample2_events)
 
-# export_ics(sample2_events, "exported_sample2.ics")
+# export_ics(sample2_events)
 # print("Exported Events to exported_sample2.ics")
