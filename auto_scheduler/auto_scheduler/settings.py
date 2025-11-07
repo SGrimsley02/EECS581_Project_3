@@ -37,8 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'apps.import_events',
-    'apps.export_events',
+    'apps.scheduler',
 ]
 
 MIDDLEWARE = [
@@ -76,12 +75,8 @@ WSGI_APPLICATION = 'auto_scheduler.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'spacecalendar',
-        'USER': 'dev',
-        'PASSWORD': 'eecs581!',
-        'HOST': 'localhost',
-        'PORT': '5432',
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
