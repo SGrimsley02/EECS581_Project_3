@@ -1,0 +1,20 @@
+<!--
+    Name: apps/scheduler/templates/upload_ics.html
+    Description: HTML template extension for the upload ics file page.
+    Authors: Kiara Grimsley
+    Created: November 7, 2025
+    Last Modified: November 7, 2025
+-->
+
+{% extends 'base.html' %}
+
+{% block title %}Upload Calendar{% endblock %} <!-- Page Title -->
+
+{% block content %} <!-- Page Content -->
+    <h2>Upload Your .ics File</h2>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="file" name="ics_file" accept=".ics" required>
+        <button type="submit">Upload</button>
+    </form>
+{% endblock %}

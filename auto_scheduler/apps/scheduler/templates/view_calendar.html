@@ -1,0 +1,26 @@
+<!--
+    Name: apps/scheduler/templates/exportView.html
+    Description: HTML template extension for the export calendar view page.
+    Authors: Kiara Grimsley
+    Created: November 7, 2025
+    Last Modified: November 7, 2025
+-->
+
+{% extends 'base.html' %}
+
+{% block title %}View and Export Calendar{% endblock %} <!-- Page Title -->
+
+{% block content %} <!-- Page Content -->
+    <h2>PLACEHOLDER FOR CALENDAR VIEW</h2> <!-- TODO: Implement calendar view -->
+    <ul>
+        {% for event in events %}
+        <li>{{ event.title }} — {{ event.start }} to {{ event.end }}</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Export your Calendar</h2>
+    <p>Click the button below to download your .ics file.</p>
+    <form method="get" action="{% url 'scheduler:view_calendar' %}">
+        <button type="submit">Download .ics File</button>
+    </form>
+{% endblock %}

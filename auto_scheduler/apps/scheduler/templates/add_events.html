@@ -1,0 +1,17 @@
+<!--
+    Name: apps/scheduler/templates/addEvents.html
+    Description: HTML template extension for the add events page.
+    Authors: Kiara Grimsley
+    Created: November 7, 2025
+    Last Modified: November 7, 2025
+-->
+
+{% extends "base.html" %}
+{% block content %}
+<h2>Add Events</h2>
+<form method="post">
+    {% csrf_token %}
+    <!-- TODO: Event form -->
+    <button type="submit">Continue to Export</button>
+</form>
+{% endblock %}
