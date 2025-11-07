@@ -20,7 +20,7 @@
 
     <h2>Export your Calendar</h2>
     <p>Click the button below to download your .ics file.</p>
-    <form method="get" action="{% url 'view_calendar' %}">
+    <form method="get" action="{% url 'scheduler:view_calendar' %}">
         <button type="submit">Download .ics File</button>
     </form>
 {% endblock %}

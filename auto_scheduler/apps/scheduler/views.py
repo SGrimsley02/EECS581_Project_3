@@ -31,7 +31,7 @@ def upload_ics(request):
             return redirect("scheduler:add_events") # Next page
     else:
         form = ICSUploadForm() # Empty form for GET request
-    return render(request, 'scheduler/upload_ics.html', {'form': form}) # Render
+    return render(request, 'upload_ics.html', {'form': form}) # Render
 
 def add_events(request): # TODO: Ella + Hart
     '''
@@ -42,16 +42,13 @@ def add_events(request): # TODO: Ella + Hart
     # TODO: Allow user to add events with details
         # Probably a FormSet of some sort that you can add in forms.py
 
-    # Bypass for testing
-    request.method = 'POST'
-
     if request.method == 'POST': # On submission
         # TODO: Safely add the events to the database
             # Put logic to add events to DB as a utils/ model
 
         return redirect("scheduler:view_calendar") # Redirect to view + export page
 
-    return render(request, 'scheduler/add_events.html') # Render form to add events
+    return render(request, 'add_events.html') # Render form to add events
 
 def view_calendar(request): # TODO: Kiara
     '''
@@ -61,7 +58,8 @@ def view_calendar(request): # TODO: Kiara
     events = request.session.get('parsed_events', []) # Get events from session
     if not events: # If no events in session, error handling
         # Test events
-        events = import_ics('data/sample2.ics')
+        # events = import_ics('../../../data/sample2.ics')
+        pass
         # TODO: Error handling for no events
 
     # TODO: Calendar view rendering
@@ -79,5 +77,5 @@ def view_calendar(request): # TODO: Kiara
         response['Content-Disposition'] = 'attachment; filename="SpaceCalendar.ics"'
         return response
 
-    return render(request, 'scheduler/view_calendar.html', {'events': events}) # Render calendar view
+    return render(request, 'view_calendar.html', {'events': events}) # Render calendar view
 

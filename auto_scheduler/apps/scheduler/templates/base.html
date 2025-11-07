@@ -13,16 +13,16 @@
 <head>
     <meta charset="UTF-8" />
     <title>{% block title %}Auto Scheduler{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <!-- CSS if needed -->
 </head>
 
 <body>
     <header>
         <h1>Auto Scheduler</h1>
         <nav>
-            <a href="{% url 'upload_ics' %}">Upload</a> |
-            <a href="{% url 'add_events' %}">Add Events</a> |
-            <a href="{% url 'export_ics' %}">Export</a>
+            <a href="{% url 'scheduler:upload_ics' %}">Upload</a> |
+            <a href="{% url 'scheduler:add_events' %}">Add Events</a> |
+            <a href="{% url 'scheduler:view_calendar' %}">Export</a>
         </nav>
     </header>
 
