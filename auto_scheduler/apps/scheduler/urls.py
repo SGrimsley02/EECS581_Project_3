@@ -9,6 +9,10 @@ Last Modified: November 7, 2025
 from django.urls import path
 from . import views
 
+app_name = "scheduler"
+
 urlpatterns = [
-    path('scheduler/', views.scheduler, name='scheduler'),
+    path('', views.upload_ics, name='upload_ics'),
+    path('add_events/', views.add_events, name='add_events'),
+    path('view_calendar/', views.view_calendar, name='view_calendar'),
 ]

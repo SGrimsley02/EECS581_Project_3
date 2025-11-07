@@ -16,12 +16,12 @@ Including another URLconf
 
 Authors: Kiara Grimsley
 Created: October 26, 2025
-Last Modified: October 26, 2025
+Last Modified: November 7, 2025
 """
 from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
-    path('', include('apps.scheduler.urls')),
     path('admin/', admin.site.urls),
+    path('scheduler/', include('apps.scheduler.urls')),
 ]
