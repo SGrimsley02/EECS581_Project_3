@@ -19,9 +19,11 @@ Created: October 26, 2025
 Last Modified: November 7, 2025
 """
 from django.contrib import admin
+from django.shortcuts import redirect
 from django.urls import path, include
 
 urlpatterns = [
+    path('', lambda request: redirect('scheduler:upload_ics')),
     path('admin/', admin.site.urls),
     path('scheduler/', include('apps.scheduler.urls')),
 ]
