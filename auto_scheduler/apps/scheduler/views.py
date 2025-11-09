@@ -1,18 +1,21 @@
 '''
 Name: apps/scheduler/views.py
 Description: Views for handling scheduler functionality.
-Authors: Kiara Grimsley
+Authors: Kiara Grimsley, Ella Nguyen
 Created: October 26, 2025
-Last Modified: October 26, 2025
+Last Modified: November 8, 2025
 '''
 
 from django.shortcuts import render, redirect
 from django.core.files.storage import default_storage # Whatever our defined storage is
 from django.urls import reverse
 from django.http import StreamingHttpResponse
-from .forms import ICSUploadForm
+from django.forms import formset_factory
+from .forms import ICSUploadForm, TaskForm
 from .utils.icsImportExport import import_ics, export_ics
 
+SESSION_IMPORTED_EVENTS = "imported_events"   # parsed from ICS
+SESSION_TASK_REQUESTS   = "task_requests"     # user-entered tasks (requests)
 
 def upload_ics(request):
     '''
@@ -39,43 +42,55 @@ def add_events(request): # TODO: Ella + Hart
     Exact form TBD.
     '''
 
-    # TODO: Allow user to add events with details
-        # Probably a FormSet of some sort that you can add in forms.py
+    TaskFormSet = formset_factory(TaskForm, extra=1, can_delete=False, max_num=30)
 
-    if request.method == 'POST': # On submission
-        # TODO: Safely add the events to the database
-            # Put logic to add events to DB as a utils/ model
+    if request.method == "POST":
+        formset = TaskFormSet(request.POST, prefix="tasks")
+        if formset.is_valid():
+            task_requests = []
+            for form_data in formset.cleaned_data:
+                if not form_data or form_data.get("DELETE"):
+                    continue
+                task_requests.append({
+                    "title": form_data["title"],
+                    "description": form_data.get("description", ""), 
+                    "duration_minutes": form_data["duration_minutes"],
+                    "priority": form_data["priority"],
+                    "event_type": form_data["event_type"],
+                    # Optional constraints (may be None)
+                    "date_start": form_data.get("date_start").isoformat() if form_data.get("date_start") else None,
+                    "date_end":   form_data.get("date_end").isoformat()   if form_data.get("date_end")   else None,
+                    "time_start": form_data.get("time_start").isoformat() if form_data.get("time_start") else None,
+                    "time_end":   form_data.get("time_end").isoformat()   if form_data.get("time_end")   else None,
+                    "split": form_data.get("split") or False,
+                    "split_minutes": form_data.get("split_minutes"),
+                })
+            request.session[SESSION_TASK_REQUESTS] = task_requests
+            # For MVP, we redirect to view/export page; scheduling engine can use these later.
+            return redirect("scheduler:view_calendar")
+    else:
+        initial = request.session.get(SESSION_TASK_REQUESTS, [])
+        formset = TaskFormSet(initial=initial, prefix="tasks")
 
-        return redirect("scheduler:view_calendar") # Redirect to view + export page
+    # Also pass a quick count of imported events for UX context
+    imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
+    return render(
+        request,
+        "add_events.html",
+        {"formset": formset, "imported_count": len(imported_events)}
+    )
 
-    return render(request, 'add_events.html') # Render form to add events
+def view_calendar(request):
+    imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
+    task_requests   = request.session.get(SESSION_TASK_REQUESTS, [])
 
-def view_calendar(request): # TODO: Kiara
-    '''
-    View to display calendar events and allow ICS export.
-    '''
+    events = imported_events + task_requests
 
-    events = request.session.get('parsed_events', []) # Get events from session
-    if not events: # If no events in session, error handling
-        # Test events
-        # events = import_ics('../../../data/sample2.ics')
-        pass
-        # TODO: Error handling for no events
+    if request.method == 'POST':
+        ics_stream = export_ics(events)
+        resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
+        resp['Content-Disposition'] = 'attachment; filename="SpaceCalendar.ics"'
+        return resp
 
-    # TODO: Calendar view rendering
-
-    # Test bypass
-    request.method = 'POST'
-
-    if request.method == 'POST': # On export request
-        ics_file_stream = export_ics(events) # Export events to ICS format
-
-        response = StreamingHttpResponse( # Download streaming
-            ics_file_stream,
-            content_type='text/calendar'
-        )
-        response['Content-Disposition'] = 'attachment; filename="SpaceCalendar.ics"'
-        return response
-
-    return render(request, 'view_calendar.html', {'events': events}) # Render calendar view
-
+    # GET: just render the page
+    return render(request, 'view_calendar.html', {'events': events})
