@@ -42,7 +42,7 @@ def add_events(request): # TODO: Ella + Hart
     Exact form TBD.
     '''
 
-    TaskFormSet = formset_factory(TaskForm, extra=1, can_delete=True, max_num=30)
+    TaskFormSet = formset_factory(TaskForm, extra=1, can_delete=False, max_num=30)
 
     if request.method == "POST":
         formset = TaskFormSet(request.POST, prefix="tasks")

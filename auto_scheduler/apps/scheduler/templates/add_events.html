@@ -74,70 +74,75 @@
             </div>
           </div>
         </details>
-
-        {% if formset.can_delete %}
-          <div style="margin-top:8px;">
-            <label>{{ form.DELETE }} Remove this task</label>
-          </div>
-        {% endif %}
       </div>
     {% endfor %}
   </div>
 
   <div style="display:flex;gap:12px;align-items:center;">
     <button type="button" id="add-task-btn">+ Add Task</button>
+    <button type="button" id="remove-task-btn">– Remove Last Task</button>
     <button type="submit">Save & Continue</button>
   </div>
 </form>
 
 <script>
 (function() {
-  // Basic client-side "Add Task" for Django formsets
+  // Get formset elements
   const addBtn = document.getElementById('add-task-btn');
+  const removeBtn = document.getElementById('remove-task-btn');
   const container = document.getElementById('forms-container');
   const totalFormsInput = document.getElementById('id_tasks-TOTAL_FORMS');
+  const initialFormsInput = document.getElementById('id_tasks-INITIAL_FORMS');
 
-  // Build a template from an empty form structure (clone the first, then clear values)
-  function emptyFormHtml(index) {
-    // Rendered forms are named tasks-0-<field>, tasks-1-<field>, etc.
-    // We'll clone the last .task-card and replace indexes.
-    const last = container.querySelector('.task-card:last-of-type');
-    const clone = last ? last.cloneNode(true) : null;
-    if (!clone) return '';
+  // Clone the last form and clear values
+  function addNewForm() {
+    const currentTotal = parseInt(totalFormsInput.value, 10);
+    const newIndex = currentTotal;
+    const lastCard = container.querySelector('.task-card:last-of-type');
 
-    // Replace name/id indices and clear values
-    clone.setAttribute('data-form-index', index);
-    clone.querySelectorAll('input,select,textarea').forEach((el) => {
-      // Update name/id
-      if (el.name) el.name = el.name.replace(/tasks-\d+-/, `tasks-${index}-`);
-      if (el.id) el.id = el.id.replace(/id_tasks-\d+-/, `id_tasks-${index}-`);
+    if (!lastCard) {
+      alert('No existing form to clone. Please reload the page.');
+      return;
+    }
 
-      // Reset values
-      if (el.type === 'checkbox') {
-        el.checked = false;
-      } else if (el.tagName === 'SELECT') {
-        el.selectedIndex = 0;
-      } else {
-        el.value = '';
-      }
+    // Clone and reset the form
+    const clone = lastCard.cloneNode(true);
+    clone.setAttribute('data-form-index', newIndex);
+
+    clone.querySelectorAll('input, select, textarea').forEach(el => {
+      if (el.name) el.name = el.name.replace(/tasks-\d+-/, `tasks-${newIndex}-`);
+      if (el.id) el.id = el.id.replace(/id_tasks-\d+-/, `id_tasks-${newIndex}-`);
+
+      if (el.type === 'checkbox') el.checked = false;
+      else if (el.tagName === 'SELECT') el.selectedIndex = 0;
+      else el.value = '';
     });
 
-    // Uncheck DELETE on new form
+    // Reset any delete checkbox
     const del = clone.querySelector('input[name$="-DELETE"]');
     if (del) del.checked = false;
 
-    return clone;
+    container.appendChild(clone);
+    totalFormsInput.value = String(currentTotal + 1);
   }
 
-  addBtn.addEventListener('click', function() {
-    const currentTotal = parseInt(totalFormsInput.value, 10);
-    const newIndex = currentTotal;
-    const node = emptyFormHtml(newIndex);
-    if (!node) return alert('Please create at least one task first to clone.');
+  // Remove the last form 
+  function removeLastForm() {
+    const total = parseInt(totalFormsInput.value, 10);
+    const initial = parseInt(initialFormsInput.value, 10);
 
-    container.appendChild(node);
-    totalFormsInput.value = String(currentTotal + 1);
-  });
+    if (total > initial) {
+      const lastCard = container.querySelector('.task-card:last-of-type');
+      if (lastCard) {
+        container.removeChild(lastCard);
+        totalFormsInput.value = String(total - 1);
+      }
+    }
+  }
+
+  // Event listeners
+  addBtn.addEventListener('click', addNewForm);
+  removeBtn.addEventListener('click', removeLastForm);
 })();
 </script>
 
