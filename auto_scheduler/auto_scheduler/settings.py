@@ -9,12 +9,16 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
+import os
+import environ
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Initialize environment variables and read .env file
+env = environ.Env(DEBUG=(bool, False))
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -75,8 +79,15 @@ WSGI_APPLICATION = 'auto_scheduler.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        "NAME": env("POSTGRESQL_DB"),
+        "USER": env("POSTGRESQL_USER"),
+        "PASSWORD": env("POSTGRESQL_PASSWORD"),
+        "HOST": env("POSTGRESQL_HOST"),
+        "PORT": env("POSTGRESQL_PORT"),
+        "OPTIONS": {
+            "sslmode": "require"  # Clever Cloud PG usually requires SSL
+        },
     }
 }
 
