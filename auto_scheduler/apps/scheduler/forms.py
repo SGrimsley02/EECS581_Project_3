@@ -32,7 +32,10 @@ EVENT_TYPES = [
 ]
 
 class TaskForm(forms.Form):
-    '''Collects details about single task/event user wants to schedule. Used in FormSet so multiple tasks can be added on 'Add Events' page'''
+    '''
+    Collects details about single task/event user wants to schedule. 
+    Used in FormSet so multiple tasks can be added on 'Add Events' page
+    '''
 
     # Short text title for the task
     title = forms.CharField(
@@ -118,12 +121,9 @@ class TaskForm(forms.Form):
     )
 
     def clean(self):
-        ''' Ensures date/time ranges are logical + Split block logic '''
-        """
-        Performs custom validation on the form's fields.
-        Ensures date/time ranges are logical and that a split block
-        size is provided when 'split' is checked.
-        """
+        ''' 
+        Ensures date/time ranges are logical + Split block logic
+        '''
         cleaned = super().clean()
 
         # Retrieve cleaned values for convenience

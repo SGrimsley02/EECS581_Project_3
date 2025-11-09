@@ -80,36 +80,6 @@ def add_events(request): # TODO: Ella + Hart
         {"formset": formset, "imported_count": len(imported_events)}
     )
 
-# def view_calendar(request): # TODO: Kiara
-#     '''
-#     View to display calendar events and allow ICS export.
-#     '''
-
-#     events = request.session.get('parsed_events', []) # Get events from session
-#     if not events: # If no events in session, error handling
-#         # Test events
-#         # events = import_ics('../../../data/sample2.ics')
-#         pass
-#         # TODO: Error handling for no events
-
-#     # TODO: Calendar view rendering
-
-#     # Test bypass
-#     request.method = 'POST'
-
-#     if request.method == 'POST': # On export request
-#         ics_file_stream = export_ics(events) # Export events to ICS format
-
-#         response = StreamingHttpResponse( # Download streaming
-#             ics_file_stream,
-#             content_type='text/calendar'
-#         )
-#         response['Content-Disposition'] = 'attachment; filename="SpaceCalendar.ics"'
-#         return response
-
-#     return render(request, 'view_calendar.html', {'events': events}) # Render calendar view
-
-# VIEW CALENDAR METHOD STRICTLY JUST MADE FOR TESTING ADD EVENT
 def view_calendar(request):
     events = request.session.get('imported_events', [])
 
