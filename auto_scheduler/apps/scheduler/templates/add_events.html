@@ -3,7 +3,7 @@
     Description: HTML template extension for the add events page.
     Authors: Kiara Grimsley, Ella Nguyen
     Created: November 7, 2025
-    Last Modified: November 8, 2025
+    Last Modified: November 9, 2025
 -->
 
 {# auto_scheduler/apps/scheduler/templates/add_events.html #}
@@ -74,75 +74,121 @@
             </div>
           </div>
         </details>
+
+        <div style="margin-top:8px; display:flex; gap:8px;">
+            <button type="button" class="btn-remove-card" title="Remove this task">Remove</button>
+        </div>
       </div>
     {% endfor %}
   </div>
 
   <div style="display:flex;gap:12px;align-items:center;">
     <button type="button" id="add-task-btn">+ Add Task</button>
-    <button type="button" id="remove-task-btn">– Remove Last Task</button>
     <button type="submit">Save & Continue</button>
   </div>
 </form>
 
 <script>
 (function() {
-  // Get formset elements
-  const addBtn = document.getElementById('add-task-btn');
-  const removeBtn = document.getElementById('remove-task-btn');
-  const container = document.getElementById('forms-container');
+  // Elements
+  const formsetEl       = document.getElementById('task-formset');
+  const addBtn          = document.getElementById('add-task-btn');
+  const container       = document.getElementById('forms-container');
   const totalFormsInput = document.getElementById('id_tasks-TOTAL_FORMS');
-  const initialFormsInput = document.getElementById('id_tasks-INITIAL_FORMS');
 
-  // Clone the last form and clear values
+  // Utilities
+  function formCards() {
+    return Array.from(container.querySelectorAll('.task-card'));
+  }
+  function countForms() {
+    return formCards().length;
+  }
+  function updateControls() {
+    const onlyOne = countForms() <= 1;
+    container.querySelectorAll('.btn-remove-card').forEach(btn => {
+      btn.disabled = onlyOne;
+    });
+  }
+  function reindexForms() {
+    // Make indices contiguous: tasks-0-*, tasks-1-*, etc.
+    formCards().forEach((card, idx) => {
+      card.setAttribute('data-form-index', idx);
+      card.querySelectorAll('input, select, textarea, label').forEach(el => {
+        if (el.tagName === 'LABEL' && el.getAttribute('for')) {
+          el.setAttribute('for', el.getAttribute('for').replace(/id_tasks-\d+-/, `id_tasks-${idx}-`));
+        }
+        if (el.id)   el.id   = el.id.replace(/id_tasks-\d+-/, `id_tasks-${idx}-`);
+        if (el.name) el.name = el.name.replace(/tasks-\d+-/, `tasks-${idx}-`);
+      });
+    });
+    totalFormsInput.value = String(countForms());
+    updateControls();
+  }
+  function isBlankCard(card) {
+    // "blank" = both Title and Duration empty
+    const title    = card.querySelector('input[name$="-title"]');
+    const duration = card.querySelector('input[name$="-duration_minutes"]');
+    const hasTitle = title && title.value.trim().length > 0;
+    const hasDur   = duration && duration.value.trim().length > 0;
+    return !(hasTitle || hasDur);
+  }
+
+  // Add new form (clone last)
   function addNewForm() {
-    const currentTotal = parseInt(totalFormsInput.value, 10);
-    const newIndex = currentTotal;
-    const lastCard = container.querySelector('.task-card:last-of-type');
-
-    if (!lastCard) {
+    const last = container.querySelector('.task-card:last-of-type');
+    if (!last) {
       alert('No existing form to clone. Please reload the page.');
       return;
     }
-
-    // Clone and reset the form
-    const clone = lastCard.cloneNode(true);
-    clone.setAttribute('data-form-index', newIndex);
-
+    const clone = last.cloneNode(true);
+    // Clear any cloned error markup when adding a new form
+    clone.querySelectorAll('.errorlist').forEach(el => el.remove());
+    clone.querySelectorAll('[aria-invalid="true"]').forEach(el => el.removeAttribute('aria-invalid'));
     clone.querySelectorAll('input, select, textarea').forEach(el => {
-      if (el.name) el.name = el.name.replace(/tasks-\d+-/, `tasks-${newIndex}-`);
-      if (el.id) el.id = el.id.replace(/id_tasks-\d+-/, `id_tasks-${newIndex}-`);
-
       if (el.type === 'checkbox') el.checked = false;
       else if (el.tagName === 'SELECT') el.selectedIndex = 0;
       else el.value = '';
     });
-
-    // Reset any delete checkbox
-    const del = clone.querySelector('input[name$="-DELETE"]');
-    if (del) del.checked = false;
-
     container.appendChild(clone);
-    totalFormsInput.value = String(currentTotal + 1);
+    reindexForms();
   }
 
-  // Remove the last form 
-  function removeLastForm() {
-    const total = parseInt(totalFormsInput.value, 10);
-    const initial = parseInt(initialFormsInput.value, 10);
-
-    if (total > initial) {
-      const lastCard = container.querySelector('.task-card:last-of-type');
-      if (lastCard) {
-        container.removeChild(lastCard);
-        totalFormsInput.value = String(total - 1);
-      }
+  // Per-card remove (delete any form, not just last)
+  container.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-remove-card');
+    if (!btn) return;
+    if (countForms() <= 1) return; // keep at least 1
+    const card = btn.closest('.task-card');
+    if (card) {
+      card.remove();
+      reindexForms();
     }
-  }
+  });
 
-  // Event listeners
+  // Prune blank forms on submit (so is_valid passes cleanly)
+  formsetEl.addEventListener('submit', function() {
+    // Remove blank cards, but keep at least 1 in the DOM for UX
+    formCards().forEach(card => {
+      if (countForms() > 1 && isBlankCard(card)) {
+        card.remove();
+      }
+    });
+    reindexForms();
+
+    // Handle the "all blank" case inside the submit handler
+    const cardsAfter = formCards();
+    if (cardsAfter.length === 1 && isBlankCard(cardsAfter[0])) {
+      // Submit zero forms: remove the last card and set TOTAL_FORMS=0
+      cardsAfter[0].remove();
+      totalFormsInput.value = '0';
+      // intentionally no reindex; we're sending 0 forms
+      updateControls();
+    }
+  });
+
+  // Wire up buttons & initialize
   addBtn.addEventListener('click', addNewForm);
-  removeBtn.addEventListener('click', removeLastForm);
+  reindexForms(); // initial state
 })();
 </script>
 
