@@ -81,7 +81,10 @@ def add_events(request): # TODO: Ella + Hart
     )
 
 def view_calendar(request):
-    events = request.session.get('imported_events', [])
+    imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
+    task_requests   = request.session.get(SESSION_TASK_REQUESTS, [])
+
+    events = imported_events + task_requests
 
     if request.method == 'POST':
         ics_stream = export_ics(events)
