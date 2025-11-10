@@ -6,7 +6,7 @@ Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan
 Created: October 26, 2025
 Last Modified: November 9, 2025
 '''
-
+import logging
 from django.shortcuts import render, redirect
 from django.core.files.storage import default_storage # Whatever our defined storage is
 from django.urls import reverse
@@ -21,6 +21,7 @@ SESSION_IMPORTED_EVENTS = "imported_events" # parsed from ICS
 SESSION_TASK_REQUESTS   = "task_requests" # user-entered tasks (requests)
 from django.contrib import messages
 
+logger = logging.getLogger("apps.scheduler")
 
 UTC = pytz.UTC
 
@@ -34,11 +35,19 @@ def upload_ics(request):
         form = ICSUploadForm(request.POST, request.FILES)
         if form.is_valid(): # For now just if ics file exists
             ics_file = form.cleaned_data['ics_file']
-            file_path = default_storage.save(ics_file.name, ics_file) # Save file to default storage
-            events = import_ics(default_storage.path(file_path)) # Process the uploaded ICS file
-            request.session['imported_events'] = events # Store events in session for later use
-            request.session['uploaded_file_path'] = file_path # Store file path in session
-            return redirect("scheduler:add_events") # Next page
+            try:
+                file_path = default_storage.save(ics_file.name, ics_file) # Save file to default storage
+                events = import_ics(default_storage.path(file_path)) # Process the uploaded ICS file
+                request.session['imported_events'] = events # Store events in session for later use
+                request.session['uploaded_file_path'] = file_path # Store file path in session
+                messages.success(request, "Calendar imported")
+                logger.info("ICS import success: file=%s events=%s", ics_file.name, len(events))
+                return redirect("scheduler:add_events") # Next page
+            except Exception as e:
+                logger.exception("ICS import failed")
+                messages.error(request, "We couldn't read that .ics file. Please verify the file and try again.")
+        else:
+            logger.warning("ICS upload form invalid: %s", form.errors)         
     else:
         form = ICSUploadForm() # Empty form for GET request
     return render(request, 'upload_ics.html', {'form': form}) # Render
@@ -49,12 +58,18 @@ def add_events(request): # TODO: Ella + Hart
     Exact form TBD.
     '''
 
+    logger.info("Add Events view accessed for session=%s", request.session.session_key)
+    
     TaskFormSet = formset_factory(TaskForm, extra=1, can_delete=False, max_num=30)
 
     if request.method == "POST":
+        logger.info("add_events: binding TaskFormSet from POST data")
         formset = TaskFormSet(request.POST, prefix="tasks")
+        logger.info("add_events: formset.is_valid? %s", formset.is_valid)
+        
         if formset.is_valid():
             task_requests = []
+            logger.info("add_events: processing %d forms", len(formset.cleaned_data))
             for form_data in formset.cleaned_data:
                 if not form_data or form_data.get("DELETE"):
                     continue
@@ -72,11 +87,14 @@ def add_events(request): # TODO: Ella + Hart
                     "split": form_data.get("split") or False,
                     "split_minutes": form_data.get("split_minutes"),
                 })
+            logger.info("add_events: storing %d task requests to session", len(task_requests))
             request.session[SESSION_TASK_REQUESTS] = task_requests
+            logger.info("add_events: redirecting to scheduler:view_calendar")
             # For MVP, we redirect to view/export page; scheduling engine can use these later.
             return redirect("scheduler:view_calendar")
     else:
         initial = request.session.get(SESSION_TASK_REQUESTS, [])
+        logger.info("add_events: GET detected; preloading %d existing task requests", len(initial))
         formset = TaskFormSet(initial=initial, prefix="tasks")
 
     # Also pass a quick count of imported events for UX context
@@ -88,6 +106,9 @@ def add_events(request): # TODO: Ella + Hart
     )
 
 def view_calendar(request):
+    logger.info("view_calendar: entered (method=%s, session_key=%s)",
+                request.method, getattr(request.session, "session_key", None))
+    
     imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
     task_requests = request.session.get(SESSION_TASK_REQUESTS, [])
 
@@ -95,15 +116,20 @@ def view_calendar(request):
 
     if request.method == 'POST':
         # Use scheduler to find placement of task_requests
+        logger.info("view_calendar: POST received; scheduling %d tasks against %d imported events",
+                    len(task_requests), len(imported_events))
         scheduled_events = schedule_tasks(task_requests, imported_events)
+        logger.info("view_calendar: scheduler returned %d events; exporting ICS", len(scheduled_events))
         events = imported_events + scheduled_events
         ics_stream = export_ics(events)
         resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
         resp['Content-Disposition'] = 'attachment; filename="ScheduledCalendar.ics"'
+        logger.info("view_calendar: ICS response prepared (events_total=%d); returning download", len(events))
         # Possibly store scheduled events in session for later use??
         return resp
 
     # GET: just render the page
+    logger.info("view_calendar: GET; rendering page with %d events", len(events))
     return render(request, 'view_calendar.html', {'events': events})
 
 def preferences(request):
@@ -133,9 +159,12 @@ def preferences(request):
 
             # Show success banner on the next load
             messages.add_message(request, messages.INFO, "Preferences saved.", extra_tags="prefs-bold-red")
+            logger.info("Preferences updated in session for anon/session=%s", request.session.session_key)
 
             # Redirect to avoid resubmission on refresh
             return redirect('scheduler:preferences') 
+        else:
+            logger.warning("Preferences form invalid", form.errors)
     else:
         # GET request, show the form prefilled with saved values (if any)
         form = StudyPreferencesForm(initial=initial)
