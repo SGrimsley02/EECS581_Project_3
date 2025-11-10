@@ -16,19 +16,19 @@ class ICSUploadForm(forms.Form):
         help_text="Select a .ics file to upload.",
         widget=forms.ClearableFileInput(attrs={'accept': '.ics'})
     )
-    PRIORITY_CHOICES = [
+PRIORITY_CHOICES = [
     ("low", "Low"),
     ("medium", "Medium"),
     ("high", "High"),
-    ]
+]
 
-    EVENT_TYPES = [
-      ("project", "Project"),
-      ("exam", "Exam"),
-      ("homework", "Homework"),
-      ("meeting", "Meeting"),
-      ("other", "Other"),
-    ]
+EVENT_TYPES = [
+    ("project", "Project"),
+    ("exam", "Exam"),
+    ("homework", "Homework"),
+    ("meeting", "Meeting"),
+    ("other", "Other"),
+]
 
 class TaskForm(forms.Form):
     '''
