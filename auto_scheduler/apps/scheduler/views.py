@@ -14,11 +14,15 @@ from django.http import StreamingHttpResponse
 from .forms import ICSUploadForm, TaskForm, StudyPreferencesForm
 from django.forms import formset_factory
 from .utils.icsImportExport import import_ics, export_ics
+from .utils.scheduler import schedule_tasks
+import pytz
+
+SESSION_IMPORTED_EVENTS = "imported_events" # parsed from ICS
+SESSION_TASK_REQUESTS   = "task_requests" # user-entered tasks (requests)
 from django.contrib import messages
 
 
-SESSION_IMPORTED_EVENTS = "imported_events"   # parsed from ICS
-SESSION_TASK_REQUESTS   = "task_requests"     # user-entered tasks (requests)
+UTC = pytz.UTC
 
 def upload_ics(request):
     '''
@@ -85,14 +89,18 @@ def add_events(request): # TODO: Ella + Hart
 
 def view_calendar(request):
     imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-    task_requests   = request.session.get(SESSION_TASK_REQUESTS, [])
+    task_requests = request.session.get(SESSION_TASK_REQUESTS, [])
 
     events = imported_events + task_requests
 
     if request.method == 'POST':
+        # Use scheduler to find placement of task_requests
+        scheduled_events = schedule_tasks(task_requests, imported_events)
+        events = imported_events + scheduled_events
         ics_stream = export_ics(events)
         resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
-        resp['Content-Disposition'] = 'attachment; filename="SpaceCalendar.ics"'
+        resp['Content-Disposition'] = 'attachment; filename="ScheduledCalendar.ics"'
+        # Possibly store scheduled events in session for later use??
         return resp
 
     # GET: just render the page
