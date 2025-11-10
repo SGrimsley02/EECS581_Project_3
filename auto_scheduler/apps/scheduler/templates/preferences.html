@@ -1,0 +1,73 @@
+<!--
+    Name: apps/scheduler/templates/preferences.html
+    Description: Template for the study preferences questionnaire. Displays the
+                 full form where users can create or update their scheduling
+                 preferences, including time rankings, daily limits, sleep
+                 schedule, weekend rules, and exam preparation strategy.
+    Authors: Audrey Pan
+    Created: November 9, 2025
+    Last Modified: November 9, 2025
+-->
+{% extends "base.html" %}
+{% block title %}Preferences – Auto Scheduler{% endblock %}
+{% block content %}
+<h2>Study Preferences</h2>
+<form method="post">
+  {% csrf_token %}
+  <fieldset>
+  <legend>When do you study best? (rank 1 = best, 6 = worst)</legend>
+
+  <div class="rank-row">
+    {{ form.early_morning_rank.label_tag }} {{ form.early_morning_rank }}
+  </div>
+
+  <div class="rank-row">
+    {{ form.late_morning_rank.label_tag }} {{ form.late_morning_rank }}
+  </div>
+
+  <div class="rank-row">
+    {{ form.afternoon_rank.label_tag }} {{ form.afternoon_rank }}
+  </div>
+
+  <div class="rank-row">
+    {{ form.evening_rank.label_tag }} {{ form.evening_rank }}
+  </div>
+
+  <div class="rank-row">
+    {{ form.night_rank.label_tag }} {{ form.night_rank }}
+  </div>
+
+  <div class="rank-row">
+    {{ form.late_night_rank.label_tag }} {{ form.late_night_rank }}
+  </div>
+</fieldset>
+
+
+  <fieldset>
+    <legend>Session Settings</legend>
+    {{ form.ideal_length.label_tag }} {{ form.ideal_length }}<br/>
+    {{ form.session_style.label_tag }} {{ form.session_style }}<br/>
+    {{ form.max_hours_per_day.label_tag }} {{ form.max_hours_per_day }}
+  </fieldset>
+
+  <fieldset>
+    <legend>Scheduling Constraints</legend>
+    {{ form.wake_time.label_tag }} {{ form.wake_time }}<br/>
+    {{ form.bed_time.label_tag }} {{ form.bed_time }}<br/>
+    {{ form.weekends.label_tag }} {{ form.weekends }}<br/>
+    {{ form.blackout_days.label_tag }}<br/>
+    {{ form.blackout_days }}
+  </fieldset>
+
+  <fieldset>
+    <legend>Strategy</legend>
+    {{ form.lookahead.label_tag }} {{ form.lookahead }}
+  </fieldset>
+
+  {% if form.non_field_errors %}
+    <div class="message">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <button type="submit">Save Preferences</button>
+</form>
+{% endblock %}
