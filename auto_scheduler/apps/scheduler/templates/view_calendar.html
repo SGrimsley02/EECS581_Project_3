@@ -24,6 +24,10 @@
         <br><small><strong>Description:</strong> {{ event.description }}</small>
       {% endif %}
 
+      {% if event.category %}
+        <br><small><strong>Category:</strong> {{ event.category }}</small>
+      {% endif %}
+
       {% if event.event_type %}
         <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
       {% endif %}

@@ -11,6 +11,15 @@ Functions: export_ics(events, file_path)
 from datetime import datetime
 from ics import Calendar, Event
 import pytz
+from enum import Enum
+import re
+
+class EventCategory(Enum):
+    CLASS = "Class"
+    STUDY = "Study Session"
+    LEISURE = "Leisure"
+    WORK = "Work"
+    OTHER = "Other"
 
 def export_ics(events): # TODO: modify to export from database
     """
@@ -58,10 +67,60 @@ def import_ics(file_path): # TODO: modify to import into database
                 "end": ics_event.end.astimezone(pytz.UTC).isoformat(),
                 "description": ics_event.description,
                 "location": ics_event.location,
+                "recurrence": next((e.value for e in ics_event.extra if e.name == "RRULE"), None),
+                "category": ics_event.categories,
                 # If any more fields needed, add them here
             }
+            categorize_event(event) # Add category to event
             events.append(event)
     return events
+
+def categorize_event(event):
+    """
+    Categorizes an event based on its name or description. Then, appends the category to the event dictionary.
+    Parameters:
+        event: Dict of event to categorize.
+    Returns:
+        None
+    """
+    name = event["name"].lower()
+    start = event["start"]
+    end = event["end"]
+    description = event["description"].lower()
+    recurrence = event["recurrence"]
+    
+
+    if re.search(r"\b(study|review|homework|assignment|exam|project|prep|test|quiz)\b", name + " " + description):
+        event["category"] = EventCategory.STUDY.value
+        
+    elif re.search(r"\b(class|lecture|seminar|course|lab|discussion)\b", name + " " + description):
+        event["category"] = EventCategory.CLASS.value
+    
+    # Checks for common course code patterns (e.g., EECS 101, MATH202)
+    elif re.search(r"[A-Z]{2,4}\s?\d{3}", name + " " + description):
+        event["category"] = EventCategory.CLASS.value
+    
+    elif re.search(r"\b(dinner|fun|party|game|movie|concert|outing|lunch|chill|hang|hangout|friends|birthday|bday|relax|date|coffee|break)\b", name + " " + description):
+        event["category"] = EventCategory.LEISURE.value
+    
+    elif re.search(r"\b(work|meeting|call|presentation|deadline|office|shift|job|internship)\b", name + " " + description):
+        event["category"] = EventCategory.WORK.value
+    
+    elif re.search(r"\b(workout|gym|doctor|workout)\b", name + " " + description):
+        event["category"] = EventCategory.OTHER.value
+    
+    elif start:
+        start_hour = start.time().hour
+        duration_hours = ((end - start).seconds / 3600) if end else None
+
+        # Likely class: between 8am-5pm, recurring, 30min-2hr
+        if 8 <= start_hour <= 17 and recurrence and duration_hours and 0.5 <= duration_hours <= 2:
+            event["category"] = EventCategory.CLASS.value
+        
+        # Likely work: between 8am-10pm, recurring, 2hr+
+        elif 8 <= start_hour <= 22 and recurrence and duration_hours and duration_hours >= 2:
+            event["category"] = EventCategory.WORK.value   
+    return
 
 # Example usage:
 # sample2_events = import_ics("data/sample2.ics")
