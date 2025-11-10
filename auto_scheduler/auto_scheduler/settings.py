@@ -132,3 +132,32 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Logging 
+# Logs Django requests, warnings, and any logger from our code, with tracebacks for crashes.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "simple": {
+            "format": "[{levelname}] {name}: {message}",
+            "style": "{",
+        },
+        "verbose": {
+            "format": "[{asctime}] {levelname} {name} {module}:{lineno} — {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "loggers": {
+        # Django internals (errors during requests)
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        "django.server": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        "apps.scheduler": {"handlers": ["console"], "level": "INFO", "propagate": False},
+    },
+}

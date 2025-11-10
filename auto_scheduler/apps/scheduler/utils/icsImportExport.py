@@ -1,9 +1,9 @@
 '''
 Name: icsImportExport.py
 Description: Module for importing and exporting calendar events in ICS format.
-Authors: Kiara Grimsley
+Authors: Kiara Grimsley, Audrey Pan
 Created: October 26, 2025
-Last Modified: November 7, 2025
+Last Modified: November 9, 2025
 Functions: export_ics(events, file_path)
             import_ics(file_path)
 '''
@@ -13,6 +13,9 @@ from ics import Calendar, Event
 from apps.scheduler.utils.event_types import EventType
 import pytz
 import re
+import logging
+
+logger = logging.getLogger("apps.scheduler")
 
 def export_ics(events): # TODO: modify to export from database
     """
@@ -27,6 +30,8 @@ def export_ics(events): # TODO: modify to export from database
         Creates an ICS file at specified path with new events.
     """
 
+    logger.info("export_ics: start (events=%d)", 0 if events is None else len(events))
+    
     # Helper: convert start/end from datetime object or ISO to timezone-aware UTC datetime
     def to_dt(x):
         if isinstance(x, datetime):
@@ -43,6 +48,8 @@ def export_ics(events): # TODO: modify to export from database
     for event in events:
         ics_event = Event()
         ics_event.name = event.get("name", "No Title") # Event title, default No Title
+        if ics_event.name is None or ics_event.name == "No Title":
+            logger.warning("export_ics: event missing 'name'; using default 'No Title'")
         start_raw = event.get("start", datetime.now()) # Raw event start time, default now (modified from prev error-causing version)
         end_raw = event.get("end", datetime.now()) # Raw event end time, default now
         ics_event.begin = to_dt(start_raw) # Event start time
@@ -52,6 +59,10 @@ def export_ics(events): # TODO: modify to export from database
         # If any more fields needed, add them here
 
         calendar.events.add(ics_event)
+        logger.debug(
+        "export_ics: added event name=%r begin=%s end=%s",
+        ics_event.name, ics_event.begin, ics_event.end
+        )
 
     return calendar.serialize_iter() # serialize_iter in case file gets large
 
@@ -64,11 +75,22 @@ def import_ics(file_path): # TODO: modify to import into database
         List[Dict]: List of events imported from the ICS file.
     """
     events = [] # List to hold imported events
-
+    logger.info("import_ics: starting import from %s", file_path)
     # Read ICS file
     with open(file_path, "r") as ics_file:
         calendar = Calendar(ics_file.read())
+        try:
+            total=len(calendar.events)
+        except Exception:
+            total=-1
+        logger.info("import_ics: parsed events count=%s", total)
         for ics_event in calendar.events:
+            logger.debug(
+                "import_ics: ingest name=%r begin=%s end=%s",
+                getattr(ics_event, "name", None),
+                getattr(getattr(ics_event, "begin", None), "isoformat", lambda: None)(),
+                getattr(getattr(ics_event, "end", None), "isoformat", lambda: None)(),
+            )
             event = {
                 "name": ics_event.name,
                 "start": ics_event.begin.astimezone(pytz.UTC).isoformat(),
@@ -81,6 +103,7 @@ def import_ics(file_path): # TODO: modify to import into database
             }
             categorize_event(event) # Add category to event
             events.append(event)
+    logger.info("import_ics: returning %d events", len(events))
     return events
 
 def categorize_event(event):
@@ -91,6 +114,8 @@ def categorize_event(event):
     Returns:
         None
     """
+    logger.debug("categorize_event: evaluating event name=%r", event.get("name"))
+    
     name = event["name"].lower()
     start = event["start"]
     end = event["end"]
@@ -128,6 +153,7 @@ def categorize_event(event):
         # Likely work: between 8am-10pm, recurring, 2hr+
         elif 8 <= start_hour <= 22 and recurrence and duration_hours and duration_hours >= 2:
             event["event_type"] = EventType.WORK.value   
+    logger.debug("categorize_event: assigned event_type=%r", event.get("event_type"))
     return
 
 # Example usage:

@@ -15,7 +15,8 @@ class ICSUploadForm(forms.Form):
     ics_file = forms.FileField(
         label="Upload ICS File",
         help_text="Select a .ics file to upload.",
-        widget=forms.ClearableFileInput(attrs={'accept': '.ics'})
+        widget=forms.ClearableFileInput(attrs={'accept': '.ics'}),
+        error_messages={"required": "Please select a .ics file to upload."}
     )
 PRIORITY_CHOICES = [
     ("low", "Low"),
@@ -230,3 +231,4 @@ class StudyPreferencesForm(forms.Form):
         # Only validate if all ranks exist (avoids None comparison issues)
         if None not in ranks and len(set(ranks)) != 6:
             raise forms.ValidationError("Please assign a unique rank (1-6) to each time window.")
+        return cleaned
