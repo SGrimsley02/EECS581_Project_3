@@ -37,7 +37,8 @@
     <hr>
     <h2>Export your Calendar</h2>
     <p>Click the button below to download your .ics file.</p>
-    <form method="get" action="{% url 'scheduler:view_calendar' %}">
+    <form method="post" action="{% url 'scheduler:view_calendar' %}"> <!--Changed from GET to POST to flow with view_calendar logic-->
+        {% csrf_token %} <!--Required for security-->
         <button type="submit">Download .ics File</button>
     </form>
 {% endblock %}

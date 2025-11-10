@@ -1,7 +1,7 @@
 '''
 Name: apps/scheduler/views.py
 Description: Views for handling scheduler functionality.
-Authors: Kiara Grimsley, Ella Nguyen
+Authors: Kiara Grimsley, Ella Nguyen, Hart Nurnberg
 Created: October 26, 2025
 Last Modified: November 8, 2025
 '''
@@ -14,9 +14,6 @@ from django.forms import formset_factory
 from .forms import ICSUploadForm, TaskForm
 from .utils.icsImportExport import import_ics, export_ics
 from .utils.scheduler import schedule_tasks
-from ics import Calendar, Event
-import os
-import time
 import pytz
 
 SESSION_IMPORTED_EVENTS = "imported_events" # parsed from ICS
@@ -89,14 +86,18 @@ def add_events(request): # TODO: Ella + Hart
 
 def view_calendar(request):
     imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-    task_requests   = request.session.get(SESSION_TASK_REQUESTS, [])
+    task_requests = request.session.get(SESSION_TASK_REQUESTS, [])
 
     events = imported_events + task_requests
 
     if request.method == 'POST':
+        # Use scheduler to find placement of task_requests
+        scheduled_events = schedule_tasks(task_requests, imported_events)
+        events = imported_events + scheduled_events
         ics_stream = export_ics(events)
         resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
-        resp['Content-Disposition'] = 'attachment; filename="SpaceCalendar.ics"'
+        resp['Content-Disposition'] = 'attachment; filename="ScheduledCalendar.ics"'
+        # Possibly store scheduled events in session for later use??
         return resp
 
     # GET: just render the page

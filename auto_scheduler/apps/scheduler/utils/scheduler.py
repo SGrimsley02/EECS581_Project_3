@@ -1,24 +1,53 @@
+'''
+Name: apps/scheduler/scheduler.py
+Description: Module for scheduling tasks
+Authors: Hart Nurnberg
+Created: November 7, 2025
+Last Modified: November 9, 2025
+'''
+
 from datetime import datetime, date, time, timedelta
 from typing import List, Tuple, Dict, Optional
 import copy
+import pytz
 
-# Simple data shapes used internally
+UTC = pytz.UTC
+
+# Data structures used internally are as follows:
 # BusySlot = (start_datetime, end_datetime)
 # TaskRequest = {
 #   "title","description","duration_minutes","priority","event_type",
 #   "date_start","date_end","time_start","time_end","split","split_minutes"
-#   (date/time fields may be None or actual date/time objects)
-# }
+# } 
+# (date/time fields may be None or actual date/time objects)
 # ScheduledEvent = {"title","description","start","end","event_type","priority"}
 
+def _to_dt_utc(x) -> Optional[datetime]:
+    """
+    Accepts a datetime or ISO string and returns a timezone-aware UTC datetime.
+    Used on events from ICS files.
+    Returns None if x is empty. 
+    """
+    if not x:
+        return None
+    if isinstance(x, datetime):
+        return x if x.tzinfo else x.replace(tzinfo=UTC)
+    # ISO string from import_ics (e.g., '2025-11-08T14:30:00+00:00')
+    dt = datetime.fromisoformat(str(x))
+    return dt.astimezone(UTC) if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
 def to_datetime(d: date, t: time) -> datetime:
-    """Combine date + time into datetime; if time is None use midnight."""
-    if t is None:
-        return datetime.combine(d, time.min)
-    return datetime.combine(d, t)
+    """
+    Combine date + time into UTC-timezone-aware datetime
+    Used on events created via form.
+    If time is None use midnight.
+    """
+    base = datetime.combine(d, t if t else time.min) # time.min is midnight
+    return base.replace(tzinfo=UTC)
 
 def merge_busy_slots(busy: List[Tuple[datetime, datetime]]) -> List[Tuple[datetime, datetime]]:
-    """Merge overlapping/adjacent busy intervals"""
+    """Merge overlapping/adjacent busy intervals (assumes tz-aware)."""
     if not busy:
         return []
     busy_sorted = sorted(busy, key=lambda x: x[0])
@@ -26,7 +55,6 @@ def merge_busy_slots(busy: List[Tuple[datetime, datetime]]) -> List[Tuple[dateti
     cur_s, cur_e = busy_sorted[0]
     for s, e in busy_sorted[1:]:
         if s <= cur_e + timedelta(seconds=1):
-            # overlapping or adjacent
             cur_e = max(cur_e, e)
         else:
             merged.append((cur_s, cur_e))
@@ -35,7 +63,7 @@ def merge_busy_slots(busy: List[Tuple[datetime, datetime]]) -> List[Tuple[dateti
     return merged
 
 def invert_slots(busy: List[Tuple[datetime, datetime]], window_start: datetime, window_end: datetime) -> List[Tuple[datetime, datetime]]:
-    """Return free slots inside [window_start, window_end) given merged busy intervals"""
+    """Return free slots inside [window_start, window_end) given merged busy intervals (all timezone-aware)."""
     free = []
     cur = window_start
     for s, e in busy:
@@ -52,22 +80,20 @@ def invert_slots(busy: List[Tuple[datetime, datetime]], window_start: datetime, 
 
 def get_busy_from_imported(imported_events: List[dict]) -> List[Tuple[datetime, datetime]]:
     """
-    Map whatever `import_ics` returned into list of (start, end) datetimes.
-    Adapt this function to match your import_ics schema.
+    Convert imported events (whose start/end are ISO strings from import_ics)
+    into merged list of (start, end) UTC-timezone-aware datetimes.
     """
     busy = []
     for ev in imported_events:
-        # Example assumption: ev has 'start' and 'end' datetime objects already.
-        s = ev.get("start")
-        e = ev.get("end")
-        if s and e:
+        s = _to_dt_utc(ev.get("start"))
+        e = _to_dt_utc(ev.get("end"))
+        if s and e and e > s:
             busy.append((s, e))
     return merge_busy_slots(busy)
 
 def expand_task_request(raw_task: dict):
     """
-    Convert ISO strings in task_requests to python date/time or None.
-    The add_events view saved ISO strings for date/time.
+    Convert ISO strings in task_requests to python types (datetime or None).
     """
     t = copy.copy(raw_task)
     # date_start/date_end are YYYY-MM-DD or None
@@ -77,11 +103,9 @@ def expand_task_request(raw_task: dict):
         t["date_end"] = date.fromisoformat(t["date_end"])
     # time_start/time_end are HH:MM:SS or None
     if t.get("time_start"):
-        # forms.py used widget type="time", add_events isoformat for time -> "HH:MM:SS"
         t["time_start"] = time.fromisoformat(t["time_start"])
     if t.get("time_end"):
         t["time_end"] = time.fromisoformat(t["time_end"])
-    # ensure ints
     t["duration_minutes"] = int(t.get("duration_minutes"))
     t["split_minutes"] = int(t["split_minutes"]) if t.get("split_minutes") else None
     t["split"] = bool(t.get("split"))
@@ -89,11 +113,7 @@ def expand_task_request(raw_task: dict):
 
 def generate_candidate_windows_for_task(task: dict, window_start: datetime, window_end: datetime) -> List[Tuple[datetime, datetime]]:
     """
-    Given a task with optional date/time constraints, create candidate day/time windows where the task may be placed.
-    Returns list of (slot_start_datetime, slot_end_datetime) where we can attempt to fit the task.
-    Strategy:
-      - If date_start/date_end present, iterate dates in that window; otherwise use overall window_start..window_end range.
-      - For each day, clamp times to time_start/time_end if present.
+    Build candidate day/time windows (tz-aware UTC).
     """
     ds = task.get("date_start")
     de = task.get("date_end")
@@ -102,17 +122,15 @@ def generate_candidate_windows_for_task(task: dict, window_start: datetime, wind
 
     results = []
 
-    # Build date range to iterate
     start_date = ds if ds else window_start.date()
-    end_date = de if de else window_end.date()
+    end_date   = de if de else window_end.date()
 
-    # iterate inclusive by date
     d = start_date
     one_day = timedelta(days=1)
     while d <= end_date:
-        day_start = datetime.combine(d, ts if ts else time.min)
-        day_end   = datetime.combine(d, te if te else time.max)
-        # clamp to global window
+        # TODO: Adjust time zone for the following (currently scheduling events 6 hours too early):
+        day_start = to_datetime(d, ts if ts else time.min)
+        day_end   = to_datetime(d, te if te else time.max)
         slot_s = max(day_start, window_start)
         slot_e = min(day_end, window_end)
         if slot_s < slot_e:
@@ -150,73 +168,61 @@ def schedule_tasks(
       - list of ScheduledEvent dicts: {"title","description","start","end","event_type","priority"}
     """
 
+    # Ensure UTC-aware global window
     if window_start is None:
-        window_start = datetime.now()
+        window_start = datetime.now(UTC)
+    else:
+        window_start = _to_dt_utc(window_start)
     if window_end is None:
-        window_end = window_start + timedelta(days=14)  # default two-week horizon
+        window_end = window_start + timedelta(days=14)
+    else:
+        window_end = _to_dt_utc(window_end)
 
     busy = get_busy_from_imported(imported_events)
-    # busy already merged
-    free = invert_slots(busy, window_start, window_end)
+    current_busy = merge_busy_slots(busy[:])
 
-    # Expand tasks and sort by priority+maybe duration (example: high -> medium -> low)
+    def compute_free():
+        return invert_slots(merge_busy_slots(current_busy), window_start, window_end)
+
     priority_order = {"high": 0, "medium": 1, "low": 2}
     tasks = [expand_task_request(t) for t in task_requests_raw]
-    tasks_sorted = sorted(tasks, key=lambda x: (priority_order.get(x.get("priority","medium"), 1), -int(x.get("duration_minutes",0))))
-
+    tasks_sorted = sorted(
+        tasks,
+        key=lambda x: (priority_order.get(x.get("priority","medium"), 1), -int(x.get("duration_minutes",0))))
+    
     scheduled_events = []
-    # We'll maintain a mutable busy list that includes booked new events as we go
-    current_busy = busy[:]
-    current_busy = merge_busy_slots(current_busy)
-
-    # helper: refresh free list from current_busy
-    def compute_free():
-        nonlocal current_busy
-        return invert_slots(merge_busy_slots(current_busy), window_start, window_end)
 
     for task in tasks_sorted:
         chunks = split_into_chunks(task["duration_minutes"], task.get("split", False), task.get("split_minutes"))
-        chunk_starts = []
-        # For each chunk, attempt to place it in earliest fitting free slot that also sits inside allowed windows
         for chunk_minutes in chunks:
             placed = False
             free_slots = compute_free()
-            # Candidate windows further restrict free slots per task constraints
             candidates = []
             for free_s, free_e in free_slots:
-                # Intersect this free slot with task's allowed day/time windows
                 for cand in generate_candidate_windows_for_task(task, free_s, free_e):
-                    # candidate window already is within free slot because we passed free_s/free_e as window
                     candidates.append(cand)
-            # Sort candidates by earliest start
-            candidates = sorted(candidates, key=lambda x: x[0])
+            candidates.sort(key=lambda x: x[0])
             needed = timedelta(minutes=chunk_minutes)
             for cand_s, cand_e in candidates:
                 if (cand_e - cand_s) >= needed:
-                    # schedule chunk at earliest possible start within candidate window
                     start_dt = cand_s
                     end_dt = start_dt + needed
-                    # create scheduled event
                     new_ev = {
-                        "title": task.get("title"),
+                        "name": task.get("title"),
                         "description": task.get("description"),
-                        "start": start_dt,
-                        "end": end_dt,
+                        "start": start_dt,  # tz-aware UTC
+                        "end": end_dt,      # tz-aware UTC
                         "event_type": task.get("event_type"),
                         "priority": task.get("priority"),
                     }
                     scheduled_events.append(new_ev)
-                    # add to busy
                     current_busy.append((start_dt, end_dt))
                     current_busy = merge_busy_slots(current_busy)
                     placed = True
                     break
             if not placed:
-                # could not place this chunk
-                # current strategy: leave unscheduled (you could also return partial failure)
-                # we mark the task chunk as unscheduled by adding None or logging
                 scheduled_events.append({
-                    "title": task.get("title"),
+                    "name": task.get("title"),
                     "description": task.get("description"),
                     "start": None,
                     "end": None,
@@ -225,5 +231,4 @@ def schedule_tasks(
                     "unscheduled": True,
                     "requested_minutes": chunk_minutes
                 })
-        # end chunks
     return scheduled_events
