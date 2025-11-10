@@ -2,10 +2,12 @@
 <!--
     Name: apps/scheduler/templates/base.html
     Description: HTML template for the standard base layout.
-                All other templates extend this one.
-    Authors: Kiara Grimsley
+                All other templates extend this one. 
+                Includes global navigation, message rendering, and
+                light styling for layout and alerts.
+    Authors: Kiara Grimsley, Audrey Pan
     Created: November 7, 2025
-    Last Modified: November 7, 2025
+    Last Modified: November 9, 2025
 -->
 
 <!-- Metadata -->
@@ -14,19 +16,52 @@
     <meta charset="UTF-8" />
     <title>{% block title %}Auto Scheduler{% endblock %}</title>
     <!-- CSS if needed -->
+     <style>
+        .messages {
+            margin: 1rem 0;
+        }
+
+        .message {
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .message.prefs-bold-red {
+            color: #b91c1c; /* Red-700 */
+            background: #fee2e2; /* Red-100 */
+            border: 1px solid #fecaca; /* Red-200 */
+            font-weight: 700; /* Bold */
+        }
+        .rank-row {
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        }
+    </style>
 </head>
 
 <body>
     <header>
         <h1>Auto Scheduler</h1>
         <nav>
+
             <a href="{% url 'scheduler:upload_ics' %}">Upload</a> |
             <a href="{% url 'scheduler:add_events' %}">Add Events</a> |
-            <a href="{% url 'scheduler:view_calendar' %}">Export</a>
+            <a href="{% url 'scheduler:view_calendar' %}">Export</a> |
+            <a href="{% url 'scheduler:preferences' %}">Preferences</a> 
         </nav>
     </header>
 
     <main>
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                    <div class="message {% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
         {% block content %}
         <!-- Page-specific content goes here -->
         {% endblock %}

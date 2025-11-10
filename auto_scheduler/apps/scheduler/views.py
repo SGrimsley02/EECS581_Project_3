@@ -1,17 +1,57 @@
 '''
 Name: apps/scheduler/views.py
-Description: Views for handling scheduler functionality.
-Authors: Kiara Grimsley
+Description: Views for handling scheduler functionality and the
+             study preferences form
+Authors: Kiara Grimsley, Audrey Pan
 Created: October 26, 2025
-Last Modified: October 26, 2025
+Last Modified: November 9, 2025
 '''
 
 from django.shortcuts import render, redirect
 from django.core.files.storage import default_storage # Whatever our defined storage is
 from django.urls import reverse
 from django.http import StreamingHttpResponse
-from .forms import ICSUploadForm
+from .forms import ICSUploadForm, StudyPreferencesForm
 from .utils.icsImportExport import import_ics, export_ics
+from django.contrib import messages
+
+
+def preferences(request):
+    """
+    Create/update study preferences. Stores selections in session (JSON-safe).
+    Shows a success message on save.
+    """
+    # Pull previously saved preferences (if any) from the session
+    initial = request.session.get('study_preferences', None)
+
+    if request.method == 'POST':
+        # Bind submitted from values
+        form = StudyPreferencesForm(request.POST)
+        
+        if form.is_valid():
+            # Copy values so we can modify thme safely
+            cleaned = form.cleaned_data.copy()
+
+            # Make TimeField values JSON-safe, so convert them to strs that are safe
+            for key in ('wake_time', 'bed_time'):
+                if cleaned.get(key):
+                    cleaned[key] = cleaned[key].strftime('%H:%M')
+
+            # Store updated preferences in the session
+            request.session['study_preferences'] = cleaned
+            request.session.modified = True
+
+            # Show success banner on the next load
+            messages.add_message(request, messages.INFO, "Preferences saved.", extra_tags="prefs-bold-red")
+
+            # Redirect to avoid resubmission on refresh
+            return redirect('scheduler:preferences') 
+    else:
+        # GET request, show the form prefilled with saved values (if any)
+        form = StudyPreferencesForm(initial=initial)
+        
+    # Render the page with the form
+    return render(request, 'preferences.html', {'form': form})
 
 
 def upload_ics(request):
