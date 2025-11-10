@@ -17,6 +17,8 @@ import re
 def export_ics(events): # TODO: modify to export from database
     """
     Exports a list of events to an ICS file.
+    Accepts datetimes or ISO strings for start/end.
+
     Parameters:
         events (List[Dict]): List of events (dictionaries) to export.
         file_path (str): Path to the ICS file to create.
@@ -24,18 +26,31 @@ def export_ics(events): # TODO: modify to export from database
         None
         Creates an ICS file at specified path with new events.
     """
-    calendar = Calendar() # New calendar instance
+
+    # Helper: convert start/end from datetime object or ISO to timezone-aware UTC datetime
+    def to_dt(x):
+        if isinstance(x, datetime):
+            return x if x.tzinfo else x.replace(tzinfo=pytz.UTC)
+        try:
+            # Convert ISO string to datetime
+            dt = datetime.fromisoformat(str(x))
+            return dt if dt.tzinfo else dt.replace(tzinfo=pytz.UTC)
+        except Exception:
+            return datetime.now(pytz.UTC)
+    
+    calendar = Calendar()
     # Add all events to the calendar
     for event in events:
         ics_event = Event()
         ics_event.name = event.get("name", "No Title") # Event title, default No Title
-        ics_event.begin = str(event.get("start", datetime.now()).astimezone(pytz.UTC)) # Event start time, default now (error?)
-        ics_event.end = str(event.get("end", datetime.now()).astimezone(pytz.UTC)) # Event end time, default now (error?)
+        start_raw = event.get("start", datetime.now()) # Raw event start time, default now (modified from prev error-causing version)
+        end_raw = event.get("end", datetime.now()) # Raw event end time, default now
+        ics_event.begin = to_dt(start_raw) # Event start time
+        ics_event.end = to_dt(end_raw) # Event end time
         ics_event.description = event.get("description", "") # Event description, default none
         ics_event.location = event.get("location", "") # Event location, default none
         # If any more fields needed, add them here
 
-        # Add event to calendar
         calendar.events.add(ics_event)
 
     return calendar.serialize_iter() # serialize_iter in case file gets large
