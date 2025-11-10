@@ -23,7 +23,7 @@ from django.shortcuts import redirect
 from django.urls import path, include
 
 urlpatterns = [
-    path('', lambda request: redirect('scheduler:upload_ics')),
+    path('', lambda request: redirect('scheduler:preferences')),
     path('admin/', admin.site.urls),
     path('scheduler/', include('apps.scheduler.urls')),
 ]

@@ -45,11 +45,10 @@
     <header>
         <h1>Auto Scheduler</h1>
         <nav>
-
+            <a href="{% url 'scheduler:preferences' %}">Preferences</a> |
             <a href="{% url 'scheduler:upload_ics' %}">Upload</a> |
             <a href="{% url 'scheduler:add_events' %}">Add Events</a> |
-            <a href="{% url 'scheduler:view_calendar' %}">Export</a> |
-            <a href="{% url 'scheduler:preferences' %}">Preferences</a> 
+            <a href="{% url 'scheduler:view_calendar' %}">Export</a> 
         </nav>
     </header>
 

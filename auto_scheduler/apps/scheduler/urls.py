@@ -13,7 +13,7 @@ from . import views
 app_name = "scheduler"
 
 urlpatterns = [
-    path('', lambda request: redirect('scheduler:upload_ics')),
+    path('', lambda request: redirect('scheduler:preferences')),
     path('preferences/', views.preferences, name='preferences'),
     path('upload_ics/', views.upload_ics, name='upload_ics'),
     path('add_events/', views.add_events, name='add_events'),

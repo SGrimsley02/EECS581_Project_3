@@ -191,14 +191,6 @@ class StudyPreferencesForm(forms.Form):
     wake_time = forms.TimeField(label="What time do you usually wake up?", widget=forms.TimeInput(attrs={'type': 'time'}))
     bed_time  = forms.TimeField(label="What time do you usually go to bed?", widget=forms.TimeInput(attrs={'type': 'time'}))
 
-    # Weekend rules for whether the scheduler may assign study sessions
-    WEEKENDS_CHOICES = [
-        ("yes", "Yes (Saturday and Sunday)"),
-        ("no", "No"),
-        ("sunday_only", "Only Sundays"),
-    ]
-    weekends = forms.ChoiceField(label="Do you want study sessions on weekends?", choices=WEEKENDS_CHOICES)
-
     # Days to fully block out from scheduling
     DAYS = [
         ("mon", "Monday"), ("tue", "Tuesday"), ("wed", "Wednesday"),
