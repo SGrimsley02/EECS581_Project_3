@@ -7,7 +7,7 @@ Last Modified: November 9, 2025
 '''
 
 from django import forms
-from .event_types import EventType
+from .utils.event_types import EventType
 
 class ICSUploadForm(forms.Form):
     '''Upload field for .ics files. Accepts only files with .ics extension'''

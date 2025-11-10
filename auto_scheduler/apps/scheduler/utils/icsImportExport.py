@@ -10,7 +10,7 @@ Functions: export_ics(events, file_path)
 
 from datetime import datetime
 from ics import Calendar, Event
-from apps.scheduler.event_types import EventType
+from apps.scheduler.utils.event_types import EventType
 import pytz
 import re
 
