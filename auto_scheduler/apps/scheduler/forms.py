@@ -7,6 +7,7 @@ Last Modified: November 9, 2025
 '''
 
 from django import forms
+from .event_types import EventType
 
 class ICSUploadForm(forms.Form):
     '''Upload field for .ics files. Accepts only files with .ics extension'''
@@ -23,11 +24,11 @@ PRIORITY_CHOICES = [
 ]
 
 EVENT_TYPES = [
-    ("project", "Project"),
-    ("exam", "Exam"),
-    ("homework", "Homework"),
-    ("meeting", "Meeting"),
-    ("other", "Other"),
+    (EventType.CLASS.value, EventType.CLASS.value),
+    (EventType.STUDY.value, EventType.STUDY.value),
+    (EventType.LEISURE.value, EventType.LEISURE.value),
+    (EventType.WORK.value, EventType.WORK.value),
+    (EventType.OTHER.value, EventType.OTHER.value),
 ]
 
 class TaskForm(forms.Form):
