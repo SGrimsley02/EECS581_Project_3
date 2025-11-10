@@ -1,17 +1,195 @@
 <!--
     Name: apps/scheduler/templates/addEvents.html
     Description: HTML template extension for the add events page.
-    Authors: Kiara Grimsley
+    Authors: Kiara Grimsley, Ella Nguyen
     Created: November 7, 2025
-    Last Modified: November 7, 2025
+    Last Modified: November 9, 2025
 -->
 
+{# auto_scheduler/apps/scheduler/templates/add_events.html #}
 {% extends "base.html" %}
 {% block content %}
-<h2>Add Events</h2>
-<form method="post">
-    {% csrf_token %}
-    <!-- TODO: Event form -->
-    <button type="submit">Continue to Export</button>
+
+<h2 class="mb-2">Add Events</h2>
+<p class="text-sm text-muted">Imported events loaded: {{ imported_count|default:0 }}</p>
+
+<form method="post" id="task-formset">
+  {% csrf_token %}
+  {{ formset.management_form }}
+
+  <div id="forms-container">
+    {% for form in formset %}
+      <div class="task-card" data-form-index="{{ forloop.counter0 }}" style="border:1px solid #ddd;padding:12px;margin-bottom:10px;border-radius:8px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <div>
+            <label>Title</label>
+            {{ form.title }}
+          </div>
+          <div>
+            <label>Duration (min)</label>
+            {{ form.duration_minutes }}
+          </div>
+          <div>
+            <label>Priority</label>
+            {{ form.priority }}
+          </div>
+          <div>
+            <label>Event Type</label>
+            {{ form.event_type }}
+        </div>
+        </div>
+
+        <div style="margin-top:8px;">
+            <label>Description</label><br>
+            {{ form.description }}
+        </div>
+
+        <details style="margin-top:8px;">
+          <summary>Optional constraints</summary>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;">
+            <div>
+              <label>Earliest Date</label>
+              {{ form.date_start }}
+            </div>
+            <div>
+              <label>Latest Date</label>
+              {{ form.date_end }}
+            </div>
+            <div>
+              <label>Earliest Time</label>
+              {{ form.time_start }}
+            </div>
+            <div>
+              <label>Latest Time</label>
+              {{ form.time_end }}
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:8px;">
+              <div>
+                <label>{{ form.split }} Split?</label>
+              </div>
+              <div>
+                <label>Split size (min)</label>
+                {{ form.split_minutes }}
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <div style="margin-top:8px; display:flex; gap:8px;">
+            <button type="button" class="btn-remove-card" title="Remove this task">Remove</button>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center;">
+    <button type="button" id="add-task-btn">+ Add Task</button>
+    <button type="submit">Save & Continue</button>
+  </div>
 </form>
+
+<script>
+(function() {
+  // Elements
+  const formsetEl       = document.getElementById('task-formset');
+  const addBtn          = document.getElementById('add-task-btn');
+  const container       = document.getElementById('forms-container');
+  const totalFormsInput = document.getElementById('id_tasks-TOTAL_FORMS');
+
+  // Utilities
+  function formCards() {
+    return Array.from(container.querySelectorAll('.task-card'));
+  }
+  function countForms() {
+    return formCards().length;
+  }
+  function updateControls() {
+    const onlyOne = countForms() <= 1;
+    container.querySelectorAll('.btn-remove-card').forEach(btn => {
+      btn.disabled = onlyOne;
+    });
+  }
+  function reindexForms() {
+    // Make indices contiguous: tasks-0-*, tasks-1-*, etc.
+    formCards().forEach((card, idx) => {
+      card.setAttribute('data-form-index', idx);
+      card.querySelectorAll('input, select, textarea, label').forEach(el => {
+        if (el.tagName === 'LABEL' && el.getAttribute('for')) {
+          el.setAttribute('for', el.getAttribute('for').replace(/id_tasks-\d+-/, `id_tasks-${idx}-`));
+        }
+        if (el.id)   el.id   = el.id.replace(/id_tasks-\d+-/, `id_tasks-${idx}-`);
+        if (el.name) el.name = el.name.replace(/tasks-\d+-/, `tasks-${idx}-`);
+      });
+    });
+    totalFormsInput.value = String(countForms());
+    updateControls();
+  }
+  function isBlankCard(card) {
+    // "blank" = both Title and Duration empty
+    const title    = card.querySelector('input[name$="-title"]');
+    const duration = card.querySelector('input[name$="-duration_minutes"]');
+    const hasTitle = title && title.value.trim().length > 0;
+    const hasDur   = duration && duration.value.trim().length > 0;
+    return !(hasTitle || hasDur);
+  }
+
+  // Add new form (clone last)
+  function addNewForm() {
+    const last = container.querySelector('.task-card:last-of-type');
+    if (!last) {
+      alert('No existing form to clone. Please reload the page.');
+      return;
+    }
+    const clone = last.cloneNode(true);
+    // Clear any cloned error markup when adding a new form
+    clone.querySelectorAll('.errorlist').forEach(el => el.remove());
+    clone.querySelectorAll('[aria-invalid="true"]').forEach(el => el.removeAttribute('aria-invalid'));
+    clone.querySelectorAll('input, select, textarea').forEach(el => {
+      if (el.type === 'checkbox') el.checked = false;
+      else if (el.tagName === 'SELECT') el.selectedIndex = 0;
+      else el.value = '';
+    });
+    container.appendChild(clone);
+    reindexForms();
+  }
+
+  // Per-card remove (delete any form, not just last)
+  container.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-remove-card');
+    if (!btn) return;
+    if (countForms() <= 1) return; // keep at least 1
+    const card = btn.closest('.task-card');
+    if (card) {
+      card.remove();
+      reindexForms();
+    }
+  });
+
+  // Prune blank forms on submit (so is_valid passes cleanly)
+  formsetEl.addEventListener('submit', function() {
+    // Remove blank cards, but keep at least 1 in the DOM for UX
+    formCards().forEach(card => {
+      if (countForms() > 1 && isBlankCard(card)) {
+        card.remove();
+      }
+    });
+    reindexForms();
+
+    // Handle the "all blank" case inside the submit handler
+    const cardsAfter = formCards();
+    if (cardsAfter.length === 1 && isBlankCard(cardsAfter[0])) {
+      // Submit zero forms: remove the last card and set TOTAL_FORMS=0
+      cardsAfter[0].remove();
+      totalFormsInput.value = '0';
+      // intentionally no reindex; we're sending 0 forms
+      updateControls();
+    }
+  });
+
+  // Wire up buttons & initialize
+  addBtn.addEventListener('click', addNewForm);
+  reindexForms(); // initial state
+})();
+</script>
+
 {% endblock %}

@@ -12,12 +12,29 @@
 
 {% block content %} <!-- Page Content -->
     <h2>PLACEHOLDER FOR CALENDAR VIEW</h2> <!-- TODO: Implement calendar view -->
-    <ul>
-        {% for event in events %}
-        <li>{{ event.title }} — {{ event.start }} to {{ event.end }}</li>
-        {% endfor %}
-    </ul>
 
+    <h3>Imported Events (Temporary List for Testing)</h3>
+    <ul>
+    {% for event in events %}
+    <li style="margin-bottom: 0.75rem;">
+      <strong>{% firstof event.name event.title "(No Title)" %}</strong>
+      — {{ event.start }} to {{ event.end }}
+
+      {% if event.description %}
+        <br><small><strong>Description:</strong> {{ event.description }}</small>
+      {% endif %}
+
+      {% if event.event_type %}
+        <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
+      {% endif %}
+    </li>
+  {% empty %}
+    <li>No imported events yet. Please upload a .ics file first.</li>
+  {% endfor %}
+</ul>
+
+
+    <hr>
     <h2>Export your Calendar</h2>
     <p>Click the button below to download your .ics file.</p>
     <form method="get" action="{% url 'scheduler:view_calendar' %}">
