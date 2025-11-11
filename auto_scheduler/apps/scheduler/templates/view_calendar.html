@@ -1,9 +1,9 @@
 <!--
     Name: apps/scheduler/templates/exportView.html
     Description: HTML template extension for the export calendar view page.
-    Authors: Kiara Grimsley
+    Authors: Kiara Grimsley, Ella Nguyen
     Created: November 7, 2025
-    Last Modified: November 17, 2025
+    Last Modified: November 11, 2025
 -->
 
 
@@ -37,10 +37,17 @@
   {% if DEBUG %}
     <h3>Imported Events (Debug)</h3>
     <ul>
-      {% for event in debug_events %}
-        <li style="margin-bottom: 0.75rem;">
-          <strong>{% firstof event.name event.title "(No Title)" %}</strong>
-          — {{ event.start }} to {{ event.end }}
+    {% for event in events %}
+    <li style="margin-bottom: 0.75rem;">
+      <strong>{% firstof event.name event.title "(No Title)" %}</strong>
+
+      {% if event.priority %}
+    <span class="priority-badge priority-{{ event.priority|lower }}">
+      {{ event.priority|title }}
+    </span>
+  {% endif %}
+
+      — {{ event.start }} to {{ event.end }}
 
           {% if event.description %}
             <br><small><strong>Description:</strong> {{ event.description }}</small>

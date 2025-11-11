@@ -59,7 +59,8 @@ class EventForm(forms.Form):
     # User-assigned priority level
     priority = forms.ChoiceField(
         choices=PRIORITY_CHOICES,
-        label="Priority"
+        label="Priority",
+        initial="medium"
     )
 
     # User-assigned event type
