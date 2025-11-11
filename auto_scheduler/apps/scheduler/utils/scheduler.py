@@ -1,9 +1,9 @@
 '''
 Name: apps/scheduler/scheduler.py
 Description: Module for scheduling tasks
-Authors: Hart Nurnberg, Audrey Pan
+Authors: Hart Nurnberg, Audrey Pan, Ella Nguyen
 Created: November 7, 2025
-Last Modified: November 9, 2025
+Last Modified: November 11, 2025
 '''
 
 from datetime import datetime, date, time, timedelta
@@ -15,6 +15,12 @@ import logging
 logger = logging.getLogger("apps.scheduler")
 
 UTC = pytz.UTC
+
+PRIORITY_ORDER = {
+    "high": 0,
+    "medium": 1,
+    "low": 2
+}
 
 # Data structures used internally are as follows:
 # BusySlot = (start_datetime, end_datetime)
@@ -216,9 +222,14 @@ def schedule_tasks(
 
     priority_order = {"high": 0, "medium": 1, "low": 2}
     tasks = [expand_task_request(t) for t in task_requests_raw]
+    # Sort by (priority asc, duration desc)
     tasks_sorted = sorted(
-        tasks,
-        key=lambda x: (priority_order.get(x.get("priority","medium"), 1), -int(x.get("duration_minutes",0))))
+    tasks,
+    key=lambda t: (
+        PRIORITY_ORDER.get(t.get("priority", "medium"), 1),
+        -int(t.get("duration_minutes", 0)),
+    )
+)
     
     scheduled_events = []
     logger.info("schedule_tasks: window=[%s, %s) initial_busy=%d tasks_sorted=%d",

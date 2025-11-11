@@ -1,9 +1,9 @@
 '''
 Name: icsImportExport.py
 Description: Module for importing and exporting calendar events in ICS format.
-Authors: Kiara Grimsley, Audrey Pan
+Authors: Kiara Grimsley, Audrey Pan, Ella Nguyen
 Created: October 26, 2025
-Last Modified: November 9, 2025
+Last Modified: November 11, 2025
 Functions: export_ics(events, file_path)
             import_ics(file_path)
 '''
@@ -121,6 +121,7 @@ def categorize_event(event):
     end = event["end"]
     description = event["description"].lower()
     recurrence = event["recurrence"]
+    text = f"{name} {description}"
     
 
     if re.search(r"\b(study|review|homework|assignment|exam|project|prep|test|quiz)\b", name + " " + description):
@@ -142,7 +143,7 @@ def categorize_event(event):
     elif re.search(r"\b(workout|gym|doctor|workout)\b", name + " " + description):
         event["event_type"] = EventType.OTHER.value
     
-    elif start:
+    elif isinstance(start, datetime) and isinstance(end, datetime):
         start_hour = start.time().hour
         duration_hours = ((end - start).seconds / 3600) if end else None
 
@@ -153,6 +154,16 @@ def categorize_event(event):
         # Likely work: between 8am-10pm, recurring, 2hr+
         elif 8 <= start_hour <= 22 and recurrence and duration_hours and duration_hours >= 2:
             event["event_type"] = EventType.WORK.value   
+
+    # Priority Heuristics
+    # Only set if not already set elsewhere (e.g., user-edited later)
+    if not event.get("priority"):
+        if re.search(r"\b(exam|midterm|final|quiz|test)\b", text):
+            event["priority"] = "high"
+        elif re.search(r"\b(project|capstone)\b", text):
+            event["priority"] = "medium"
+        else:
+            event["priority"] = "low"
     logger.debug("categorize_event: assigned event_type=%r", event.get("event_type"))
     return
 
