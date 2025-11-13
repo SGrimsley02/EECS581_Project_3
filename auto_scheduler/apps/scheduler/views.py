@@ -22,10 +22,18 @@ from .forms import ICSUploadForm, EventForm, StudyPreferencesForm
 
 from .utils.icsImportExport import import_ics, export_ics
 from .utils.scheduler import schedule_events
+import pytz
 from .utils.constants import * # SESSION_*, LOGGER_NAME
 from datetime import date
+from apps.scheduler.utils.scheduler import preview_schedule_order
+
+SESSION_IMPORTED_EVENTS = "imported_events" # parsed from ICS
+SESSION_TASK_REQUESTS   = "task_requests" # user-entered tasks (requests)
+from django.contrib import messages
 
 logger = logging.getLogger(LOGGER_NAME)
+
+UTC = pytz.UTC
 
 @login_required
 def upload_ics(request):
@@ -139,6 +147,10 @@ def view_calendar(request):
         resp['Content-Disposition'] = 'attachment; filename="ScheduledCalendar.ics"'
         logger.info("view_calendar: ICS response prepared (events_total=%d); returning download", len(scheduled_events))
         return resp
+    
+    preview = preview_schedule_order(task_requests)
+    for i, t in enumerate(preview, start=1):
+        t["schedule_order"] = i
 
     # Determine month/year to show
     month = request.GET.get('month')
