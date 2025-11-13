@@ -40,6 +40,20 @@
   {% endfor %}
 </ul>
 
+<hr>
+
+<h3>Scheduling Order (Preview)</h3>
+<ol>
+  {% for t in preview_tasks %}
+    <li>
+      #{{ t.schedule_order }} —
+      <strong>{{ t.title }}</strong>
+      <small>({{ t.priority|title }}, {{ t.duration_minutes }} min)</small>
+    </li>
+  {% empty %}
+    <li>No tasks queued for scheduling.</li>
+  {% endfor %}
+</ol>
 
     <hr>
     <h2>Export your Calendar</h2>

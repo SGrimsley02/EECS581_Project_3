@@ -16,6 +16,7 @@ from django.forms import formset_factory
 from .utils.icsImportExport import import_ics, export_ics
 from .utils.scheduler import schedule_tasks
 import pytz
+from apps.scheduler.utils.scheduler import preview_schedule_order
 
 SESSION_IMPORTED_EVENTS = "imported_events" # parsed from ICS
 SESSION_TASK_REQUESTS   = "task_requests" # user-entered tasks (requests)
@@ -127,10 +128,14 @@ def view_calendar(request):
         logger.info("view_calendar: ICS response prepared (events_total=%d); returning download", len(events))
         # Possibly store scheduled events in session for later use??
         return resp
+    
+    preview = preview_schedule_order(task_requests)
+    for i, t in enumerate(preview, start=1):
+        t["schedule_order"] = i
 
     # GET: just render the page
     logger.info("view_calendar: GET; rendering page with %d events", len(events))
-    return render(request, 'view_calendar.html', {'events': events})
+    return render(request, 'view_calendar.html', {'events': events, 'preview_tasks': preview})
 
 def preferences(request):
     """
