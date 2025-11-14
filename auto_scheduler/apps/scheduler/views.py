@@ -160,10 +160,10 @@ def view_calendar(request):
                     imported_events.pop(idx)
                     request.session[SESSION_IMPORTED_EVENTS] = imported_events
             elif delete_type == "task":
-                if 0 <= idx < len(task_requests):
+                if 0 <= idx < len(event_requests):
                     logger.info("view_calendar: deleting task request at index %d", idx)
-                    task_requests.pop(idx)
-                    request.session[SESSION_TASK_REQUESTS] = task_requests
+                    event_requests.pop(idx)
+                    request.session[SESSION_TASK_REQUESTS] = event_requests
 
             # After deleting, redirect back to GET so refresh doesn't re-POST
             return redirect("scheduler:view_calendar")
@@ -203,6 +203,10 @@ def view_calendar(request):
         'DEBUG': settings.DEBUG,
         'debug_events': scheduled_events,
         'initial_date': f"{year:04d}-{month:02d}-01",
+        'events': events,
+        'preview_tasks': preview,
+        'imported_events': imported_events,
+        'task_requests': task_requests
     }
     logger.info("view_calendar: GET; rendering page with %d events", len(scheduled_events))
     return render(request, 'view_calendar.html', ctx)
