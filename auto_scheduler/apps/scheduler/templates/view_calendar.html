@@ -116,6 +116,21 @@
   {% endfor %}
 </ol>
 
+    <hr>
+
+    <h2>Edit History</h2>
+    <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="undo">
+      <button type="submit" {% if not undo_available %}disabled{% endif %}>Undo</button>
+    </form>
+
+    <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline; margin-left:0.5rem;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="redo">
+      <button type="submit" {% if not redo_available %}disabled{% endif %}>Redo</button>
+    </form>
+
   <hr>
   <h2>Export your Calendar</h2>
   <p>Click the button below to download your .ics file.</p>

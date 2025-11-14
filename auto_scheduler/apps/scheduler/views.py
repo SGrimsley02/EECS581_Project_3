@@ -26,9 +26,13 @@ import pytz
 from .utils.constants import * # SESSION_*, LOGGER_NAME
 from datetime import date
 from apps.scheduler.utils.scheduler import preview_schedule_order
+import copy
 
 SESSION_IMPORTED_EVENTS = "imported_events" # parsed from ICS
 SESSION_TASK_REQUESTS   = "task_requests" # user-entered tasks (requests)
+
+SESSION_UNDO_STACK = "schedule_undo_stack"
+SESSION_REDO_STACK = "schedule_redo_stack"
 from django.contrib import messages
 
 logger = logging.getLogger(LOGGER_NAME)
@@ -146,6 +150,8 @@ def view_calendar(request):
 
         # Delete Event
         if action == "delete":
+            _push_undo(request)  # snapshot before the change
+
             delete_type  = request.POST.get("delete_type")
             delete_index = request.POST.get("delete_index")
 
@@ -154,38 +160,79 @@ def view_calendar(request):
             except (TypeError, ValueError):
                 idx = -1
 
-            if delete_type == "imported":
-                if 0 <= idx < len(imported_events):
-                    logger.info("view_calendar: deleting imported event at index %d", idx)
-                    imported_events.pop(idx)
-                    request.session[SESSION_IMPORTED_EVENTS] = imported_events
-            elif delete_type == "task":
-                if 0 <= idx < len(event_requests):
-                    logger.info("view_calendar: deleting task request at index %d", idx)
-                    event_requests.pop(idx)
-                    request.session[SESSION_TASK_REQUESTS] = event_requests
+            imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
+            event_requests   = request.session.get(SESSION_TASK_REQUESTS, [])
 
-            # After deleting, redirect back to GET so refresh doesn't re-POST
+            if delete_type == "imported" and 0 <= idx < len(imported_events):
+                logger.info("view_calendar: deleting imported event at index %d", idx)
+                imported_events.pop(idx)
+                request.session[SESSION_IMPORTED_EVENTS] = imported_events
+            elif delete_type == "task" and 0 <= idx < len(event_requests):
+                logger.info("view_calendar: deleting task request at index %d", idx)
+                event_requests.pop(idx)
+                request.session[SESSION_TASK_REQUESTS] = event_requests
+
+            request.session.modified = True
+            return redirect("scheduler:view_calendar")
+
+        # Undo
+        elif action == "undo":
+            undo_stack = request.session.get(SESSION_UNDO_STACK, [])
+            redo_stack = request.session.get(SESSION_REDO_STACK, [])
+
+            if undo_stack:
+                logger.info("view_calendar: undo requested")
+                # push current to redo, restore last undo
+                redo_stack.append(_get_current_state(request))
+                prev_state = undo_stack.pop()
+                request.session[SESSION_UNDO_STACK] = undo_stack
+                request.session[SESSION_REDO_STACK] = redo_stack
+                _apply_state(request, prev_state)
+
+            return redirect("scheduler:view_calendar")
+        
+        # REDO
+        elif action == "redo":
+            undo_stack = request.session.get(SESSION_UNDO_STACK, [])
+            redo_stack = request.session.get(SESSION_REDO_STACK, [])
+
+            if redo_stack:
+                logger.info("view_calendar: redo requested")
+                # push current to undo, restore last redo
+                undo_stack.append(_get_current_state(request))
+                next_state = redo_stack.pop()
+                request.session[SESSION_UNDO_STACK] = undo_stack
+                request.session[SESSION_REDO_STACK] = redo_stack
+                _apply_state(request, next_state)
+
             return redirect("scheduler:view_calendar")
 
         # Export ICS
         elif action == "export":
             # Use scheduler to find placement of task_requests
-            logger.info("view_calendar: POST received; scheduling %d tasks against %d imported events",
+            imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
+            task_requests   = request.session.get(SESSION_TASK_REQUESTS, [])
+            logger.info("view_calendar: POST(export); scheduling %d tasks against %d imported events",
                         len(task_requests), len(imported_events))
             scheduled_events = schedule_tasks(task_requests, imported_events)
-            logger.info("view_calendar: scheduler returned %d events; exporting ICS", len(scheduled_events))
             events = imported_events + scheduled_events
             ics_stream = export_ics(events)
             resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
             resp['Content-Disposition'] = 'attachment; filename="ScheduledCalendar.ics"'
-            logger.info("view_calendar: ICS response prepared (events_total=%d); returning download", len(events))
-            # Possibly store scheduled events in session for later use??
             return resp
+        
+    # GET: recompute latest lists & preview
+    imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
+    task_requests   = request.session.get(SESSION_TASK_REQUESTS, [])
+    events = imported_events + task_requests
     
     preview = preview_schedule_order(task_requests)
     for i, t in enumerate(preview, start=1):
         t["schedule_order"] = i
+    
+    # flags for template (to disable buttons)
+    undo_available = bool(request.session.get(SESSION_UNDO_STACK))
+    redo_available = bool(request.session.get(SESSION_REDO_STACK))
 
     # Determine month/year to show
     month = request.GET.get('month')
@@ -300,3 +347,31 @@ def auth_view(request):
     else:
         form = UserCreationForm()
     return render(request, 'registration/signup.html', {'form': form})
+
+def _get_current_state(request):
+    return {
+        "imported_events": copy.deepcopy(
+            request.session.get(SESSION_IMPORTED_EVENTS, [])
+        ),
+        "task_requests": copy.deepcopy(
+            request.session.get(SESSION_TASK_REQUESTS, [])
+        ),
+    }
+
+
+def _apply_state(request, state):
+    request.session[SESSION_IMPORTED_EVENTS] = state.get("imported_events", [])
+    request.session[SESSION_TASK_REQUESTS] = state.get("task_requests", [])
+    request.session.modified = True
+
+
+def _push_undo(request):
+    undo_stack = request.session.get(SESSION_UNDO_STACK, [])
+    undo_stack.append(_get_current_state(request))
+    # cap history to last N steps
+    if len(undo_stack) > 20:
+        undo_stack.pop(0)
+    request.session[SESSION_UNDO_STACK] = undo_stack
+    # any new edit clears redo history
+    request.session[SESSION_REDO_STACK] = []
+    request.session.modified = True
