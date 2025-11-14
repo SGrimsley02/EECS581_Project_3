@@ -163,7 +163,12 @@ def view_calendar(request):
 
     # GET: just render the page
     logger.info("view_calendar: GET; rendering page with %d events", len(events))
-    return render(request, 'view_calendar.html', {'events': events, 'preview_tasks': preview})
+    return render(request, 'view_calendar.html', {
+            "events": events,
+            "preview_tasks": preview,
+            "imported_events": imported_events,
+            "task_requests": task_requests
+        }
         )
 
 def preferences(request):
