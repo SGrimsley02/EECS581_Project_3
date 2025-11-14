@@ -15,7 +15,7 @@
 
     <h3>Imported Events (Temporary List for Testing)</h3>
     <ul>
-    {% for event in events %}
+    {% for event in imported_events %}
     <li style="margin-bottom: 0.75rem;">
       <strong>{% firstof event.name event.title "(No Title)" %}</strong>
 
@@ -34,13 +34,52 @@
       {% if event.event_type %}
         <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
       {% endif %}
-    </li>
-  {% empty %}
-    <li>No imported events yet. Please upload a .ics file first.</li>
-  {% endfor %}
-</ul>
 
-<hr>
+      <!-- DELETE IMPORTED EVENT -->
+        <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="delete_type" value="imported">
+          <input type="hidden" name="delete_index" value="{{ forloop.counter0 }}">
+          <button type="submit">Delete</button>
+        </form>
+      </li>
+    {% empty %}
+      <li>No imported events yet. Please upload a .ics file first.</li>
+    {% endfor %}
+  </ul>
+
+  <hr>
+
+  <!-- TASK REQUESTS (these are the “generated schedule” inputs) -->
+  <h3>Task Requests (to be scheduled)</h3>
+  <ul>
+    {% for t in task_requests %}
+      <li style="margin-bottom: 0.75rem;">
+        <strong>{% firstof t.title t.name "(No Title)" %}</strong>
+        <span>
+          ({{ t.priority|title }}, {{ t.duration_minutes }} min)
+        </span>
+
+        {% if t.description %}
+          <br><small><strong>Description:</strong> {{ t.description }}</small>
+        {% endif %}
+
+        <!-- DELETE TASK REQUEST -->
+        <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="delete_type" value="task">
+          <input type="hidden" name="delete_index" value="{{ forloop.counter0 }}">
+          <button type="submit">Delete</button>
+        </form>
+      </li>
+    {% empty %}
+      <li>No task requests yet. Add some on the "Add Events" page.</li>
+    {% endfor %}
+  </ul>
+
+  <hr>
 
 <h3>Scheduling Order (Preview)</h3>
 <ol>
@@ -60,6 +99,7 @@
     <p>Click the button below to download your .ics file.</p>
     <form method="post" action="{% url 'scheduler:view_calendar' %}"> <!--Changed from GET to POST to flow with view_calendar logic-->
         {% csrf_token %} <!--Required for security-->
+        <input type="hidden" name="action" value="export">
         <button type="submit">Download .ics File</button>
     </form>
 {% endblock %}

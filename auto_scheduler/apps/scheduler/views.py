@@ -116,18 +116,46 @@ def view_calendar(request):
     events = imported_events + task_requests
 
     if request.method == 'POST':
-        # Use scheduler to find placement of task_requests
-        logger.info("view_calendar: POST received; scheduling %d tasks against %d imported events",
-                    len(task_requests), len(imported_events))
-        scheduled_events = schedule_tasks(task_requests, imported_events)
-        logger.info("view_calendar: scheduler returned %d events; exporting ICS", len(scheduled_events))
-        events = imported_events + scheduled_events
-        ics_stream = export_ics(events)
-        resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
-        resp['Content-Disposition'] = 'attachment; filename="ScheduledCalendar.ics"'
-        logger.info("view_calendar: ICS response prepared (events_total=%d); returning download", len(events))
-        # Possibly store scheduled events in session for later use??
-        return resp
+        action = request.POST.get("action", "export")
+
+        # Delete Event
+        if action == "delete":
+            delete_type  = request.POST.get("delete_type")
+            delete_index = request.POST.get("delete_index")
+
+            try:
+                idx = int(delete_index)
+            except (TypeError, ValueError):
+                idx = -1
+
+            if delete_type == "imported":
+                if 0 <= idx < len(imported_events):
+                    logger.info("view_calendar: deleting imported event at index %d", idx)
+                    imported_events.pop(idx)
+                    request.session[SESSION_IMPORTED_EVENTS] = imported_events
+            elif delete_type == "task":
+                if 0 <= idx < len(task_requests):
+                    logger.info("view_calendar: deleting task request at index %d", idx)
+                    task_requests.pop(idx)
+                    request.session[SESSION_TASK_REQUESTS] = task_requests
+
+            # After deleting, redirect back to GET so refresh doesn't re-POST
+            return redirect("scheduler:view_calendar")
+
+        # Export ICS
+        elif action == "export":
+            # Use scheduler to find placement of task_requests
+            logger.info("view_calendar: POST received; scheduling %d tasks against %d imported events",
+                        len(task_requests), len(imported_events))
+            scheduled_events = schedule_tasks(task_requests, imported_events)
+            logger.info("view_calendar: scheduler returned %d events; exporting ICS", len(scheduled_events))
+            events = imported_events + scheduled_events
+            ics_stream = export_ics(events)
+            resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
+            resp['Content-Disposition'] = 'attachment; filename="ScheduledCalendar.ics"'
+            logger.info("view_calendar: ICS response prepared (events_total=%d); returning download", len(events))
+            # Possibly store scheduled events in session for later use??
+            return resp
     
     preview = preview_schedule_order(task_requests)
     for i, t in enumerate(preview, start=1):
@@ -136,6 +164,7 @@ def view_calendar(request):
     # GET: just render the page
     logger.info("view_calendar: GET; rendering page with %d events", len(events))
     return render(request, 'view_calendar.html', {'events': events, 'preview_tasks': preview})
+        )
 
 def preferences(request):
     """
