@@ -1,27 +1,25 @@
 '''
 Name: apps/scheduler/scheduler.py
 Description: Module for scheduling tasks
-Authors: Hart Nurnberg, Audrey Pan
+Authors: Hart Nurnberg, Audrey Pan, Kiara Grimsley
 Created: November 7, 2025
-Last Modified: November 9, 2025
+Last Modified: November 16, 2025
 '''
 
 from datetime import datetime, date, time, timedelta
 from typing import List, Tuple, Dict, Optional
 import copy
-import pytz
+from pytz import UTC
 import logging
 
 logger = logging.getLogger("apps.scheduler")
-
-UTC = pytz.UTC
 
 # Data structures used internally are as follows:
 # BusySlot = (start_datetime, end_datetime)
 # TaskRequest = {
 #   "title","description","duration_minutes","priority","event_type",
 #   "date_start","date_end","time_start","time_end","split","split_minutes"
-# } 
+# }
 # (date/time fields may be None or actual date/time objects)
 # ScheduledEvent = {"title","description","start","end","event_type","priority"}
 
@@ -29,7 +27,7 @@ def _to_dt_utc(x) -> Optional[datetime]:
     """
     Accepts a datetime or ISO string and returns a timezone-aware UTC datetime.
     Used on events from ICS files.
-    Returns None if x is empty. 
+    Returns None if x is empty.
     """
     logger.debug("_to_dt_utc: input=%r (type=%s)", x, type(x).__name__)
     if not x:
@@ -129,7 +127,7 @@ def expand_task_request(raw_task: dict):
     t["duration_minutes"] = int(t.get("duration_minutes"))
     t["split_minutes"] = int(t["split_minutes"]) if t.get("split_minutes") else None
     t["split"] = bool(t.get("split"))
-    logger.debug("expand_task_request: out=%r", t) 
+    logger.debug("expand_task_request: out=%r", t)
     return t
 
 def generate_candidate_windows_for_task(task: dict, window_start: datetime, window_end: datetime) -> List[Tuple[datetime, datetime]]:
@@ -219,7 +217,7 @@ def schedule_tasks(
     tasks_sorted = sorted(
         tasks,
         key=lambda x: (priority_order.get(x.get("priority","medium"), 1), -int(x.get("duration_minutes",0))))
-    
+
     scheduled_events = []
     logger.info("schedule_tasks: window=[%s, %s) initial_busy=%d tasks_sorted=%d",
                 window_start, window_end, len(current_busy), len(tasks_sorted))
@@ -246,8 +244,8 @@ def schedule_tasks(
                     new_ev = {
                         "name": task.get("title"),
                         "description": task.get("description"),
-                        "start": start_dt,  # tz-aware UTC
-                        "end": end_dt,      # tz-aware UTC
+                        "start": start_dt.isoformat(),  # tz-aware UTC
+                        "end": end_dt.isoformat(),      # tz-aware UTC
                         "event_type": task.get("event_type"),
                         "priority": task.get("priority"),
                     }
