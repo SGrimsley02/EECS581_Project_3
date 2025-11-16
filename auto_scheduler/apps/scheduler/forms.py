@@ -3,11 +3,11 @@ Name: apps/scheduler/forms.py
 Description: Forms for file uploading in the scheduler app and study preferences questionnaire.
 Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan
 Created: November 7, 2025
-Last Modified: November 9, 2025
+Last Modified: November 16, 2025
 '''
 
 from django import forms
-from .utils.event_types import EventType
+from .utils.constants import EventType, PRIORITY_CHOICES
 
 class ICSUploadForm(forms.Form):
     '''Upload field for .ics files. Accepts only files with .ics extension'''
@@ -18,23 +18,10 @@ class ICSUploadForm(forms.Form):
         widget=forms.ClearableFileInput(attrs={'accept': '.ics'}),
         error_messages={"required": "Please select a .ics file to upload."}
     )
-PRIORITY_CHOICES = [
-    ("low", "Low"),
-    ("medium", "Medium"),
-    ("high", "High"),
-]
-
-EVENT_TYPES = [
-    (EventType.CLASS.value, EventType.CLASS.value),
-    (EventType.STUDY.value, EventType.STUDY.value),
-    (EventType.LEISURE.value, EventType.LEISURE.value),
-    (EventType.WORK.value, EventType.WORK.value),
-    (EventType.OTHER.value, EventType.OTHER.value),
-]
 
 class TaskForm(forms.Form):
     '''
-    Collects details about single task/event user wants to schedule. 
+    Collects details about single task/event user wants to schedule.
     Used in FormSet so multiple tasks can be added on 'Add Events' page
     '''
 
@@ -77,7 +64,7 @@ class TaskForm(forms.Form):
 
     # User-assigned event type
     event_type = forms.ChoiceField(
-        choices=EVENT_TYPES,
+        choices=EventType.choices,
         label="Event Type",
         help_text="Select the general category of this task or event."
     )
@@ -122,7 +109,7 @@ class TaskForm(forms.Form):
     )
 
     def clean(self):
-        ''' 
+        '''
         Ensures date/time ranges are logical + Split block logic
         '''
         cleaned = super().clean()
@@ -157,7 +144,7 @@ class TaskForm(forms.Form):
             )
 
         return cleaned
-      
+
 class StudyPreferencesForm(forms.Form):
     '''Initial study preferences questionnaire'''
 
@@ -217,7 +204,7 @@ class StudyPreferencesForm(forms.Form):
     def clean(self):
         '''Ensure all ranks 1-6 are unique'''
         cleaned = super().clean()
-        
+
         # Extract all rank selections
         ranks = [
             cleaned.get("early_morning_rank"),
@@ -227,7 +214,7 @@ class StudyPreferencesForm(forms.Form):
             cleaned.get("night_rank"),
             cleaned.get("late_night_rank"),
         ]
-        
+
         # Only validate if all ranks exist (avoids None comparison issues)
         if None not in ranks and len(set(ranks)) != 6:
             raise forms.ValidationError("Please assign a unique rank (1-6) to each time window.")
