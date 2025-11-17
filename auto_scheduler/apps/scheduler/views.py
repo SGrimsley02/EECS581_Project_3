@@ -124,10 +124,19 @@ def view_calendar(request):
 
     logger.info("view_calendar: total events to display/export: %d", len(scheduled_events))
 
-    today = date.today()
+    year = request.GET.get("year")
+    month = request.GET.get("month")
 
-    prev_year, prev_month = prevMonth(today.year, today.month)
-    next_year, next_month = nextMonth(today.year, today.month)
+    if not year or not month:
+        today = date.today()
+        year = today.year
+        month = today.month
+    else:
+        year = int(year)
+        month = int(month)
+
+    prev_year, prev_month = prevMonth(year, month)
+    next_year, next_month = nextMonth(year, month)
     logger.info("view_calendar: prev_month=%d/%d next_month=%d/%d",
                 prev_month, prev_year, next_month, next_year)
 
@@ -152,10 +161,10 @@ def view_calendar(request):
     # GET: just render the page
     ctx = {
         "calendar_events": calendar_events,
-        "days": Calendar().monthdatescalendar(today.year, today.month),
-        "current_year": today.year,
-        "current_month": today.month,
-        "month_name": date(today.year, today.month, 1).strftime("%B %Y"),
+        "days": Calendar().monthdatescalendar(year, month),
+        "current_year": year,
+        "current_month": month,
+        "month_name": date(year, month, 1).strftime("%B %Y"),
         "prev_month": prev_month,
         "prev_year": prev_year,
         "next_month": next_month,
