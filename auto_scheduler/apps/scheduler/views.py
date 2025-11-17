@@ -11,7 +11,8 @@ import logging
 from django.shortcuts import render, redirect
 from django.core.files.storage import default_storage # Whatever our defined storage is
 from django.urls import reverse
-from django.http import StreamingHttpResponse
+from django.http import StreamingHttpResponse, JsonResponse
+from .forms import ICSUploadForm, TaskForm, StudyPreferencesForm
 from django.forms import formset_factory
 from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
@@ -22,6 +23,7 @@ from .forms import ICSUploadForm, TaskForm, StudyPreferencesForm
 from .utils.icsImportExport import import_ics, export_ics
 from .utils.scheduler import schedule_tasks
 from .utils.constants import * # SESSION_*, LOGGER_NAME
+from datetime import date, datetime
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -136,9 +138,46 @@ def view_calendar(request):
         logger.info("view_calendar: ICS response prepared (events_total=%d); returning download", len(scheduled_events))
         return resp
 
+    # Determine month/year to show
+    month = request.GET.get('month')
+    year = request.GET.get('year')
+    if not month or not year:
+        today = date.today()
+        month = today.month
+        year = today.year
+    else:
+        month = int(month)
+        year = int(year)
+
     # GET: just render the page
+    ctx = {
+        'debug_events': scheduled_events,
+        'initial_date': f"{year:04d}-{month:02d}-01",
+        'current_year': year,
+        'current_month': month,
+        'month_name': date(year, month, 1).strftime("%B %Y"),
+    }
     logger.info("view_calendar: GET; rendering page with %d events", len(scheduled_events))
-    return render(request, 'view_calendar.html', {'events': scheduled_events})
+    return render(request, 'view_calendar.html', ctx)
+
+def event_feed(request):
+    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
+
+    # Convert your stored events into FullCalendar format
+    formatted = []
+    for ev in scheduled_events:
+        formatted.append({
+            "id": ev.get("id", None) or ev.get("uid", None),
+            "title": ev.get("name") or ev.get("title") or "(No Title)",
+            "start": ev.get("start"),
+            "end": ev.get("end"),
+            "allDay": False,
+            "extendedProps": ev,  # keep all original data
+        })
+
+    return JsonResponse(formatted, safe=False)
+
+
 
 @login_required
 def preferences(request):

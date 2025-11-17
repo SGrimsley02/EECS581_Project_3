@@ -6,39 +6,88 @@
     Last Modified: November 7, 2025
 -->
 
-{% extends 'base.html' %}
+<!DOCTYPE html>
+<html lang='en'>
+  <head>
+    <title>Calendar</title>
 
-{% block title %}View and Export Calendar{% endblock %} <!-- Page Title -->
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.7/index.global.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.7/index.global.min.js"></script>
 
-{% block content %} <!-- Page Content -->
-    <h2>PLACEHOLDER FOR CALENDAR VIEW</h2> <!-- TODO: Implement calendar view -->
+    <style>
+        #calendar {
+            max-width: 1100px;
+            margin: 2rem auto;
+        }
+    </style>
+  </head>
+  <body>
+    <h2 style="text-align:center;">{{ month_name }}</h2>
 
-    <h3>Imported Events (Temporary List for Testing)</h3>
-    <ul>
-    {% for event in events %}
-    <li style="margin-bottom: 0.75rem;">
-      <strong>{% firstof event.name event.title "(No Title)" %}</strong>
-      — {{ event.start }} to {{ event.end }}
+    <div id="calendar"></div>
 
-      {% if event.description %}
-        <br><small><strong>Description:</strong> {{ event.description }}</small>
-      {% endif %}
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
 
-      {% if event.event_type %}
-        <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
-      {% endif %}
-    </li>
-  {% empty %}
-    <li>No imported events yet. Please upload a .ics file first.</li>
-  {% endfor %}
-</ul>
+        const calendarEl = document.getElementById("calendar");
+
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: "dayGridMonth",
+            initialDate: "{{ initial_date }}",
+            headerToolbar: {
+                left: "prev,next today",
+                center: "title",
+                right: "dayGridMonth,timeGridWeek,timeGridDay"
+            },
+            events: "/scheduler/events/",    // JSON feed from Django
+            editable: true,                  // allow drag & drop
+            selectable: true,
+            eventClick: function(info) {
+                alert("Event: " + info.event.title);
+            },
+            eventDrop: function(info) {
+                console.log("Moved event:", info.event);
+            },
+            eventResize: function(info) {
+                console.log("Resized event:", info.event);
+            }
+        });
+
+        calendar.render();
+    });
+    </script>
+
+  <h2>PLACEHOLDER FOR CALENDAR VIEW</h2> <!-- TODO: Implement calendar view -->
+
+  <h3>Imported Events (Temporary List for Testing)</h3>
+  <ul>
+    {% for event in debug_events %}
+      <li style="margin-bottom: 0.75rem;">
+        <strong>{% firstof event.name event.title "(No Title)" %}</strong>
+        — {{ event.start }} to {{ event.end }}
+
+        {% if event.description %}
+          <br><small><strong>Description:</strong> {{ event.description }}</small>
+        {% endif %}
+
+        {% if event.event_type %}
+          <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
+        {% endif %}
+      </li>
+      {% empty %}
+        <li>No imported events yet. Please upload a .ics file first.</li>
+    {% endfor %}
+  </ul>
 
 
-    <hr>
-    <h2>Export your Calendar</h2>
-    <p>Click the button below to download your .ics file.</p>
-    <form method="post" action="{% url 'scheduler:view_calendar' %}"> <!--Changed from GET to POST to flow with view_calendar logic-->
-        {% csrf_token %} <!--Required for security-->
-        <button type="submit">Download .ics File</button>
-    </form>
-{% endblock %}
+  <hr>
+  <h2>Export your Calendar</h2>
+  <p>Click the button below to download your .ics file.</p>
+  <form method="post" action="{% url 'scheduler:view_calendar' %}"> <!--Changed from GET to POST to flow with view_calendar logic-->
+      {% csrf_token %} <!--Required for security-->
+      <button type="submit">Download .ics File</button>
+  </form>
+
+  </body>
+
+</html>
