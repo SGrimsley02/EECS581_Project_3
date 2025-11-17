@@ -1,21 +1,65 @@
 <!--
     Name: apps/scheduler/templates/exportView.html
     Description: HTML template extension for the export calendar view page.
-    Authors: Kiara Grimsley
+    Authors: Kiara Grimsley, Ella Nguyen
     Created: November 7, 2025
-    Last Modified: November 7, 2025
+    Last Modified: November 16, 2025
 -->
 
 {% extends 'base.html' %}
+{% load dict_extras %}
 
 {% block title %}View and Export Calendar{% endblock %} <!-- Page Title -->
 
 {% block content %} <!-- Page Content -->
-    <h2>PLACEHOLDER FOR CALENDAR VIEW</h2> <!-- TODO: Implement calendar view -->
+    <h2>{{ month_name }}</h2>
+
+    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <a href="{% url 'scheduler:view_calendar' %}?month={{ prev_month }}&year={{ prev_year }}">
+            &laquo; Previous Month
+        </a>
+        <a href="{% url 'scheduler:view_calendar' %}?month={{ next_month }}&year={{ next_year }}">
+            Next Month &raquo;
+        </a>
+    </div>
+
+    <table style="width:100%; border-collapse:collapse; text-align:center;">
+      <thead>
+        <tr>
+          <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for week in days %}
+          <tr>
+            {% for day in week %}
+              <td style="border: 1px solid #ccc; padding: 0.5rem; vertical-align: top; height: 100px; background-color: #f9f9f9;">
+                <div style="font-weight: bold; margin-bottom: 0.5rem;">{{ day.day }}</div>
+
+                {% with day_events=calendar_events|get_item:day %}
+                  {% if day_events %}
+                    <ul style="list-style-type: none; padding-left: 0; margin: 0;">
+                      {% for event in day_events %}
+                        <li style="margin-bottom: 0.25rem; font-size: 0.9rem; background-color: #e0f7fa; padding: 0.25rem; border-radius: 4px;">
+                          {% firstof event.name event.title "(No Title)" %}
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <div style="font-size: 0.85rem; color: #999;">No events</div>
+                  {% endif %}
+                {% endwith %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
 
     <h3>Imported Events (Temporary List for Testing)</h3>
     <ul>
-    {% for event in events %}
+    {% for event in debug_events %}
     <li style="margin-bottom: 0.75rem;">
       <strong>{% firstof event.name event.title "(No Title)" %}</strong>
       — {{ event.start }} to {{ event.end }}

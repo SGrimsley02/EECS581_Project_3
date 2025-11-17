@@ -16,7 +16,9 @@ from django.forms import formset_factory
 from .utils.icsImportExport import import_ics, export_ics
 from .utils.scheduler import schedule_tasks
 from .utils.constants import * # SESSION_*, LOGGER_NAME
-
+from .utils.calendarHelper import nextMonth, prevMonth
+from datetime import date, datetime
+from calendar import Calendar
 from django.contrib import messages
 
 logger = logging.getLogger(LOGGER_NAME)
@@ -120,10 +122,25 @@ def view_calendar(request):
         request.session[SESSION_SCHEDULE_UPDATE] = False # Reset update flag
         request.session.modified = True # Ensure session is saved
 
-
     logger.info("view_calendar: total events to display/export: %d", len(scheduled_events))
 
+    today = date.today()
 
+    prev_year, prev_month = prevMonth(today.year, today.month)
+    next_year, next_month = nextMonth(today.year, today.month)
+    logger.info("view_calendar: prev_month=%d/%d next_month=%d/%d",
+                prev_month, prev_year, next_month, next_year)
+
+    # Get events by date for calendar rendering
+    calendar_events = {}
+    for event in scheduled_events:
+        start_date = event.get("start", "")
+        print(start_date, ":", type(start_date))
+        if start_date:
+            calendar_events.setdefault(
+                datetime.fromisoformat(start_date).date(), # Date key
+                [] # If none yet then initialize empty list
+            ).append(event) # Add event to that date
 
     if request.method == 'POST':
         ics_stream = export_ics(scheduled_events)
@@ -133,8 +150,22 @@ def view_calendar(request):
         return resp
 
     # GET: just render the page
+    ctx = {
+        "calendar_events": calendar_events,
+        "days": Calendar().monthdatescalendar(today.year, today.month),
+        "current_year": today.year,
+        "current_month": today.month,
+        "month_name": date(today.year, today.month, 1).strftime("%B %Y"),
+        "prev_month": prev_month,
+        "prev_year": prev_year,
+        "next_month": next_month,
+        "next_year": next_year,
+        "debug_events": scheduled_events,  # For testing: show all events
+    }
+
     logger.info("view_calendar: GET; rendering page with %d events", len(scheduled_events))
-    return render(request, 'view_calendar.html', {'events': scheduled_events})
+    logger.info("view_calendar: context=%s", ctx)
+    return render(request, 'view_calendar.html', ctx)
 
 def preferences(request):
     """
