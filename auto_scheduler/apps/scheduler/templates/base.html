@@ -2,43 +2,21 @@
 <!--
     Name: apps/scheduler/templates/base.html
     Description: HTML template for the standard base layout.
-                All other templates extend this one. 
+                All other templates extend this one.
                 Includes global navigation, message rendering, and
                 light styling for layout and alerts.
     Authors: Kiara Grimsley, Audrey Pan
     Created: November 7, 2025
-    Last Modified: November 9, 2025
+    Last Modified: November 18, 2025
 -->
-
+{% load static %}
 <!-- Metadata -->
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <title>{% block title %}Auto Scheduler{% endblock %}</title>
-    <!-- CSS if needed -->
-     <style>
-        .messages {
-            margin: 1rem 0;
-        }
-
-        .message {
-            padding: 10px 15px;
-            border-radius: 6px;
-            margin-bottom: 10px;
-        }
-        .message.prefs-bold-red {
-            color: #b91c1c; /* Red-700 */
-            background: #fee2e2; /* Red-100 */
-            border: 1px solid #fecaca; /* Red-200 */
-            font-weight: 700; /* Bold */
-        }
-        .rank-row {
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        }
-    </style>
+    <!-- CSS -->
+    <link rel="stylesheet" href="{% static 'scheduler/css/base.css' %}">
 </head>
 
 <body>

@@ -3,82 +3,58 @@
     Description: HTML template extension for the export calendar view page.
     Authors: Kiara Grimsley
     Created: November 7, 2025
-    Last Modified: November 7, 2025
+    Last Modified: November 17, 2025
 -->
 
-<!DOCTYPE html>
-<html lang='en'>
-  <head>
-    <title>Calendar</title>
 
-    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.7/index.global.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.7/index.global.min.js"></script>
+{% extends 'base.html' %}
+{% load static %}
 
-    <style>
-        #calendar {
-            max-width: 1100px;
-            margin: 2rem auto;
-        }
-    </style>
-  </head>
-  <body>
-    <h2 style="text-align:center;">{{ month_name }}</h2>
+{% block title %}
 
-    <div id="calendar"></div>
+  <title>Calendar</title>
 
-    <script>
-    document.addEventListener("DOMContentLoaded", function() {
+  <!-- Full Calendar import -->
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.7/index.global.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.7/index.global.min.js"></script>
+  <script src="{% static 'scheduler/js/calendar.js' %}"></script>
+  <style>
+      #calendar {
+          max-width: 1100px;
+          margin: 2rem auto;
+      }
+  </style>
 
-        const calendarEl = document.getElementById("calendar");
+{% endblock %}
 
-        const calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: "dayGridMonth",
-            initialDate: "{{ initial_date }}",
-            headerToolbar: {
-                left: "prev,next today",
-                center: "title",
-                right: "dayGridMonth,timeGridWeek,timeGridDay"
-            },
-            events: "/scheduler/events/",    // JSON feed from Django
-            editable: true,                  // allow drag & drop
-            selectable: true,
-            eventClick: function(info) {
-                alert("Event: " + info.event.title);
-            },
-            eventDrop: function(info) {
-                console.log("Moved event:", info.event);
-            },
-            eventResize: function(info) {
-                console.log("Resized event:", info.event);
-            }
-        });
+{% block content %}
 
-        calendar.render();
-    });
-    </script>
+    <h2 style="text-align:center;">Calendar</h2>
 
-  <h2>PLACEHOLDER FOR CALENDAR VIEW</h2> <!-- TODO: Implement calendar view -->
+    <div id="calendar" data-initial-date="{{ initial_date }}"></div>
 
-  <h3>Imported Events (Temporary List for Testing)</h3>
-  <ul>
-    {% for event in debug_events %}
-      <li style="margin-bottom: 0.75rem;">
-        <strong>{% firstof event.name event.title "(No Title)" %}</strong>
-        — {{ event.start }} to {{ event.end }}
 
-        {% if event.description %}
-          <br><small><strong>Description:</strong> {{ event.description }}</small>
-        {% endif %}
+  {% if DEBUG %}
+    <h3>Imported Events (Debug)</h3>
+    <ul>
+      {% for event in debug_events %}
+        <li style="margin-bottom: 0.75rem;">
+          <strong>{% firstof event.name event.title "(No Title)" %}</strong>
+          — {{ event.start }} to {{ event.end }}
 
-        {% if event.event_type %}
-          <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
-        {% endif %}
-      </li>
-      {% empty %}
-        <li>No imported events yet. Please upload a .ics file first.</li>
-    {% endfor %}
-  </ul>
+          {% if event.description %}
+            <br><small><strong>Description:</strong> {{ event.description }}</small>
+          {% endif %}
 
+          {% if event.event_type %}
+            <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
+          {% endif %}
+        </li>
+        {% empty %}
+          <li>No imported events yet. Please upload a .ics file first.</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
 
   <hr>
   <h2>Export your Calendar</h2>
@@ -88,6 +64,4 @@
       <button type="submit">Download .ics File</button>
   </form>
 
-  </body>
-
-</html>
+{% endblock %}

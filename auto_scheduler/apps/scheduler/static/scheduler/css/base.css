@@ -1,0 +1,29 @@
+/*
+    Name: apps/scheduler/static/scheduler/css/base.css
+    Description: CSS styles for the standard base layout.
+    Authors: Kiara Grimsley, Audrey Pan
+    Created: November 18, 2025
+    Last Modified: November 18, 2025
+*/
+
+.messages {
+    margin: 1rem 0;
+}
+
+.message {
+    padding: 10px 15px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+.message.prefs-bold-red {
+    color: #b91c1c; /* Red-700 */
+    background: #fee2e2; /* Red-100 */
+    border: 1px solid #fecaca; /* Red-200 */
+    font-weight: 700; /* Bold */
+}
+.rank-row {
+margin-bottom: 8px;
+display: flex;
+align-items: center;
+gap: 10px;
+}

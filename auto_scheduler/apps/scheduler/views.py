@@ -12,6 +12,7 @@ from django.shortcuts import render, redirect
 from django.core.files.storage import default_storage # Whatever our defined storage is
 from django.urls import reverse
 from django.http import StreamingHttpResponse, JsonResponse
+from django.conf import settings
 from .forms import ICSUploadForm, TaskForm, StudyPreferencesForm
 from django.forms import formset_factory
 from django.contrib import messages
@@ -23,7 +24,7 @@ from .forms import ICSUploadForm, TaskForm, StudyPreferencesForm
 from .utils.icsImportExport import import_ics, export_ics
 from .utils.scheduler import schedule_tasks
 from .utils.constants import * # SESSION_*, LOGGER_NAME
-from datetime import date, datetime
+from datetime import date
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -115,9 +116,10 @@ def view_calendar(request):
     logger.info("view_calendar: entered (method=%s, session_key=%s)",
                 request.method, getattr(request.session, "session_key", None))
 
+    # Get scheduled events from session, or schedule if needed
     scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
     if not scheduled_events or request.session.get(SESSION_SCHEDULE_UPDATE, True):
-        logger.info("view_calendar: no scheduled events in session; scheduling now")
+        logger.info("view_calendar: reschedule needed; scheduling now")
         imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
         task_requests = request.session.get(SESSION_TASK_REQUESTS, [])
 
@@ -131,6 +133,7 @@ def view_calendar(request):
 
     logger.info("view_calendar: total events to display/export: %d", len(scheduled_events))
 
+    # ICS Export
     if request.method == 'POST':
         ics_stream = export_ics(scheduled_events)
         resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
@@ -149,18 +152,20 @@ def view_calendar(request):
         month = int(month)
         year = int(year)
 
-    # GET: just render the page
+    # Render context
     ctx = {
+        'DEBUG': settings.DEBUG,
         'debug_events': scheduled_events,
         'initial_date': f"{year:04d}-{month:02d}-01",
-        'current_year': year,
-        'current_month': month,
-        'month_name': date(year, month, 1).strftime("%B %Y"),
     }
     logger.info("view_calendar: GET; rendering page with %d events", len(scheduled_events))
     return render(request, 'view_calendar.html', ctx)
 
 def event_feed(request):
+    '''
+    Provides scheduled events in JSON format for FullCalendar.
+    Gets rendered by view_calendar template.
+    '''
     scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
 
     # Convert your stored events into FullCalendar format
