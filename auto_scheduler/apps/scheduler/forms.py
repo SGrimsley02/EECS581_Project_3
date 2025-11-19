@@ -108,6 +108,12 @@ class TaskForm(forms.Form):
         ),
     )
 
+    # Allow for weekly recurring events
+    recurring = forms.BooleanField(
+        required=False,
+        label="Repeat every week?",
+    )
+
     def clean(self):
         '''
         Ensures date/time ranges are logical + Split block logic

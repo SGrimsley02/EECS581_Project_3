@@ -18,7 +18,8 @@ logger = logging.getLogger("apps.scheduler")
 # BusySlot = (start_datetime, end_datetime)
 # TaskRequest = {
 #   "title","description","duration_minutes","priority","event_type",
-#   "date_start","date_end","time_start","time_end","split","split_minutes"
+#   "date_start","date_end","time_start","time_end","split","split_minutes",
+#   "recurring"
 # }
 # (date/time fields may be None or actual date/time objects)
 # ScheduledEvent = {"title","description","start","end","event_type","priority"}
@@ -127,6 +128,7 @@ def expand_task_request(raw_task: dict):
     t["duration_minutes"] = int(t.get("duration_minutes"))
     t["split_minutes"] = int(t["split_minutes"]) if t.get("split_minutes") else None
     t["split"] = bool(t.get("split"))
+    t["recurring"] = bool(t.get("recurring"))
     logger.debug("expand_task_request: out=%r", t)
     return t
 
@@ -254,6 +256,51 @@ def schedule_tasks(
                     current_busy.append((start_dt, end_dt))
                     current_busy = merge_busy_slots(current_busy)
                     placed = True
+                    
+                    # Weekly recurring logic
+                    if task.get("recurring"):
+                        # If user set a latest date, stop recurring after that, else, use window_end
+                        recurrence_end_date = task.get("date_end") or window_end.date()
+                        next_start = start_dt + timedelta(weeks=1)
+                        next_end = end_dt + timedelta(weeks=1)
+
+                        # Schedule recurring event until either window_end or optional end_date is reached
+                        while next_start < window_end and next_start.date() <= recurrence_end_date:
+                            # Simple conflict check with current busy slots
+                            conflict = False
+                            for busy_s, busy_e in current_busy:
+                                if not (next_end <= busy_s or next_start >= busy_e):
+                                    conflict = True
+                                    break
+
+                            if conflict:
+                                logger.warning(
+                                    "schedule_tasks: recurring occurrence skipped "
+                                    "for title=%r on %s due to conflict",
+                                    task.get("title"), next_start
+                                )
+                            else:
+                                recur_ev = {
+                                    "name": task.get("title"),
+                                    "description": task.get("description"),
+                                    "start": next_start.isoformat(),
+                                    "end": next_end.isoformat(),
+                                    "event_type": task.get("event_type"),
+                                    "priority": task.get("priority"),
+                                    # Mark that this came from a recurring event (may or may not need)
+                                    "recurring_source": new_ev.get("start"),
+                                }
+                                scheduled_events.append(recur_ev)
+                                current_busy.append((next_start, next_end))
+                                current_busy = merge_busy_slots(current_busy)
+                                logger.info(
+                                    "schedule_tasks: scheduled recurring title=%r start=%s end=%s",
+                                    recur_ev["name"], next_start, next_end
+                                )
+
+                            # Move to the same time next week
+                            next_start += timedelta(weeks=1)
+                            next_end += timedelta(weeks=1)
                     break
             if not placed:
                 logger.warning("schedule_tasks: UNSCHEDULED title=%r minutes=%d (no fit)", task.get("title"), chunk_minutes)

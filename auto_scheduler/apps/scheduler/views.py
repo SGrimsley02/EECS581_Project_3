@@ -82,6 +82,7 @@ def add_events(request): # TODO: Ella + Hart
                     "time_end":   form_data.get("time_end").isoformat()   if form_data.get("time_end")   else None,
                     "split": form_data.get("split") or False,
                     "split_minutes": form_data.get("split_minutes"),
+                    "recurring": form_data.get("recurring") or False,
                 })
             logger.info("add_events: storing %d task requests to session", len(task_requests))
             request.session[SESSION_TASK_REQUESTS] = task_requests
