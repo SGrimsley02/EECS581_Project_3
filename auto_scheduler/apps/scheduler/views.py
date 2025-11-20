@@ -200,7 +200,7 @@ def auth_view(request):
             form.save()
             messages.success(request, "Account created successfully. Please log in.")
             logger.info("New user account created.")
-            return redirect('login')
+            return redirect('scheduler:login')
         else:
             logger.warning("Signup form invalid: %s", form.errors)
     else:
