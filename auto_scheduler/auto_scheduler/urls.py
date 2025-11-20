@@ -23,7 +23,6 @@ from django.shortcuts import redirect
 from django.urls import path, include
 
 urlpatterns = [
-    path('', lambda request: redirect('scheduler:preferences')),
     path('admin/', admin.site.urls),
-    path('scheduler/', include('apps.scheduler.urls')),
+    path('', include(('apps.scheduler.urls', 'scheduler'), namespace='scheduler'))
 ]

@@ -2,25 +2,30 @@
 Name: apps/scheduler/views.py
 Description: Views for handling scheduler functionality and the
                 study preferences form.
-Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan
+Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan, Reeny Huang
 Created: October 26, 2025
-Last Modified: November 16, 2025
+Last Modified: November 19, 2025
 '''
 import logging
+
 from django.shortcuts import render, redirect
 from django.core.files.storage import default_storage # Whatever our defined storage is
 from django.urls import reverse
 from django.http import StreamingHttpResponse
-from .forms import ICSUploadForm, TaskForm, StudyPreferencesForm
 from django.forms import formset_factory
+from django.contrib import messages
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.decorators import login_required
+
+from .forms import ICSUploadForm, TaskForm, StudyPreferencesForm
+
 from .utils.icsImportExport import import_ics, export_ics
 from .utils.scheduler import schedule_tasks
 from .utils.constants import * # SESSION_*, LOGGER_NAME
 
-from django.contrib import messages
-
 logger = logging.getLogger(LOGGER_NAME)
 
+@login_required
 def upload_ics(request):
     '''
     Handle ICS file upload events.
@@ -49,6 +54,7 @@ def upload_ics(request):
         form = ICSUploadForm() # Empty form for GET request
     return render(request, 'upload_ics.html', {'form': form}) # Render
 
+@login_required
 def add_events(request): # TODO: Ella + Hart
     '''
     View to add new events to a calendar after ICS upload.
@@ -102,6 +108,7 @@ def add_events(request): # TODO: Ella + Hart
         {"formset": formset, "imported_count": len(imported_events)}
     )
 
+@login_required
 def view_calendar(request):
     logger.info("view_calendar: entered (method=%s, session_key=%s)",
                 request.method, getattr(request.session, "session_key", None))
@@ -120,10 +127,7 @@ def view_calendar(request):
         request.session[SESSION_SCHEDULE_UPDATE] = False # Reset update flag
         request.session.modified = True # Ensure session is saved
 
-
     logger.info("view_calendar: total events to display/export: %d", len(scheduled_events))
-
-
 
     if request.method == 'POST':
         ics_stream = export_ics(scheduled_events)
@@ -136,6 +140,7 @@ def view_calendar(request):
     logger.info("view_calendar: GET; rendering page with %d events", len(scheduled_events))
     return render(request, 'view_calendar.html', {'events': scheduled_events})
 
+@login_required
 def preferences(request):
     """
     Create/update study preferences. Stores selections in session (JSON-safe).
@@ -176,3 +181,28 @@ def preferences(request):
 
     # Render the page with the form
     return render(request, 'preferences.html', {'form': form})
+
+@login_required
+def home(request):
+    '''
+    Home view that redirects to preferences.
+    '''
+    return redirect('scheduler:preferences')
+
+def auth_view(request):
+    '''
+    View for handling user authentication (signup).
+    Renders signup forms and processes authentication.
+    '''
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST or None)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Account created successfully. Please log in.")
+            logger.info("New user account created.")
+            return redirect('login')
+        else:
+            logger.warning("Signup form invalid: %s", form.errors)
+    else:
+        form = UserCreationForm()
+    return render(request, 'registration/signup.html', {'form': form})
