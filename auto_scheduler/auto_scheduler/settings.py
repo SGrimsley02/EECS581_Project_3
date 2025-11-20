@@ -31,9 +31,11 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# Login Constants
+LOGIN_REDIRECT_URL = 'scheduler:home'
+LOGOUT_REDIRECT_URL = 'scheduler:login'
 
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -59,7 +61,7 @@ ROOT_URLCONF = 'auto_scheduler.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
