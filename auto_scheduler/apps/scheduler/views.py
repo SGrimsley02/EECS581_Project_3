@@ -13,16 +13,15 @@ from django.core.files.storage import default_storage # Whatever our defined sto
 from django.urls import reverse
 from django.http import StreamingHttpResponse, JsonResponse
 from django.conf import settings
-from .forms import ICSUploadForm, TaskForm, StudyPreferencesForm
 from django.forms import formset_factory
 from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.decorators import login_required
 
-from .forms import ICSUploadForm, TaskForm, StudyPreferencesForm
+from .forms import ICSUploadForm, EventForm, StudyPreferencesForm
 
 from .utils.icsImportExport import import_ics, export_ics
-from .utils.scheduler import schedule_tasks
+from .utils.scheduler import schedule_events
 from .utils.constants import * # SESSION_*, LOGGER_NAME
 from datetime import date
 
@@ -65,20 +64,20 @@ def add_events(request): # TODO: Ella + Hart
 
     logger.info("Add Events view accessed for session=%s", request.session.session_key)
 
-    TaskFormSet = formset_factory(TaskForm, extra=1, can_delete=False, max_num=30)
+    EventFormSet = formset_factory(EventForm, extra=1, can_delete=False, max_num=30)
 
     if request.method == "POST":
-        logger.info("add_events: binding TaskFormSet from POST data")
-        formset = TaskFormSet(request.POST, prefix="tasks")
+        logger.info("add_events: binding EventFormSet from POST data")
+        formset = EventFormSet(request.POST, prefix="events")
         logger.info("add_events: formset.is_valid? %s", formset.is_valid)
 
         if formset.is_valid():
-            task_requests = []
+            event_requests = []
             logger.info("add_events: processing %d forms", len(formset.cleaned_data))
             for form_data in formset.cleaned_data:
                 if not form_data or form_data.get("DELETE"):
                     continue
-                task_requests.append({
+                event_requests.append({
                     "title": form_data["title"],
                     "description": form_data.get("description", ""),
                     "duration_minutes": form_data["duration_minutes"],
@@ -92,16 +91,16 @@ def add_events(request): # TODO: Ella + Hart
                     "split": form_data.get("split") or False,
                     "split_minutes": form_data.get("split_minutes"),
                 })
-            logger.info("add_events: storing %d task requests to session", len(task_requests))
-            request.session[SESSION_TASK_REQUESTS] = task_requests
+            logger.info("add_events: storing %d event requests to session", len(event_requests))
+            request.session[SESSION_EVENT_REQUESTS] = event_requests
             request.session[SESSION_SCHEDULE_UPDATE] = True # Mark schedule for update
             logger.info("add_events: redirecting to scheduler:view_calendar")
             # For MVP, we redirect to view/export page; scheduling engine can use these later.
             return redirect("scheduler:view_calendar")
     else:
-        initial = request.session.get(SESSION_TASK_REQUESTS, [])
-        logger.info("add_events: GET detected; preloading %d existing task requests", len(initial))
-        formset = TaskFormSet(initial=initial, prefix="tasks")
+        initial = request.session.get(SESSION_EVENT_REQUESTS, [])
+        logger.info("add_events: GET detected; preloading %d existing event requests", len(initial))
+        formset = EventFormSet(initial=initial, prefix="events")
 
     # Also pass a quick count of imported events for UX context
     imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
@@ -121,12 +120,12 @@ def view_calendar(request):
     if not scheduled_events or request.session.get(SESSION_SCHEDULE_UPDATE, True):
         logger.info("view_calendar: reschedule needed; scheduling now")
         imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-        task_requests = request.session.get(SESSION_TASK_REQUESTS, [])
+        event_requests = request.session.get(SESSION_EVENT_REQUESTS, [])
 
-        # Schedule any tasks
-        logger.info("view_calendar: scheduling %d tasks against %d imported events",
-                    len(task_requests), len(imported_events))
-        scheduled_events = imported_events + schedule_tasks(task_requests, imported_events)
+        # Schedule any events
+        logger.info("view_calendar: scheduling %d events against %d imported events",
+                    len(event_requests), len(imported_events))
+        scheduled_events = imported_events + schedule_events(event_requests, imported_events)
         request.session[SESSION_SCHEDULED_EVENTS] = scheduled_events
         request.session[SESSION_SCHEDULE_UPDATE] = False # Reset update flag
         request.session.modified = True # Ensure session is saved
