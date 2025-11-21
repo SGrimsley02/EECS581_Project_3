@@ -8,7 +8,7 @@ Last Modified: November 9, 2025
 
 from django.urls import path, include
 from django.shortcuts import redirect
-from .views import preferences, upload_ics, add_events, view_calendar, auth_view, home
+from .views import preferences, upload_ics, add_events, view_calendar, auth_view, home, event_feed
 
 app_name = "scheduler"
 
@@ -20,4 +20,5 @@ urlpatterns = [
     path('upload_ics/', upload_ics, name='upload_ics'),
     path('add_events/', add_events, name='add_events'),
     path('view_calendar/', view_calendar, name='view_calendar'),
+    path('events/', event_feed, name='event_feed'),
 ]

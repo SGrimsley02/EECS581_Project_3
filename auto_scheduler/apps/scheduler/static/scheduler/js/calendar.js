@@ -21,7 +21,7 @@ document.addEventListener("DOMContentLoaded", function() {
             center: "title",
             right: "dayGridMonth,timeGridWeek,timeGridDay"
         },
-        events: "/scheduler/events/", // JSON event feed from Django
+        events: "/events/", // JSON event feed from Django
         editable: true,
         selectable: true,
         // Event Handlers
