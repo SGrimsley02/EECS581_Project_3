@@ -19,13 +19,13 @@ class ICSUploadForm(forms.Form):
         error_messages={"required": "Please select a .ics file to upload."}
     )
 
-class TaskForm(forms.Form):
+class EventForm(forms.Form):
     '''
-    Collects details about single task/event user wants to schedule.
-    Used in FormSet so multiple tasks can be added on 'Add Events' page
+    Collects details about single event user wants to schedule.
+    Used in FormSet so multiple events can be added on 'Add Events' page
     '''
 
-    # Short text title for the task
+    # Short text title for the event
     title = forms.CharField(
         max_length=120,
         label="Title",
@@ -39,15 +39,15 @@ class TaskForm(forms.Form):
         label="Description",
         widget=forms.Textarea(
             attrs={
-                "placeholder": "Add an optional note or details about this task...",
+                "placeholder": "Add an optional note or details about this event...",
                 "rows": 2,
                 "cols": 40,
             }
         ),
-        help_text="(Optional) Brief note to describe the task.",
+        help_text="(Optional) Brief note to describe the event.",
     )
 
-    # Task duration in minutes
+    # Event duration in minutes
     duration_minutes = forms.IntegerField(
         min_value=5,
         label="Duration (minutes)",
@@ -66,7 +66,7 @@ class TaskForm(forms.Form):
     event_type = forms.ChoiceField(
         choices=EventType.choices,
         label="Event Type",
-        help_text="Select the general category of this task or event."
+        help_text="Select the general category of this event."
     )
 
     ''' Optional Fields(?) '''
@@ -94,7 +94,7 @@ class TaskForm(forms.Form):
         widget=forms.TimeInput(attrs={"type": "time"}),
     )
 
-    # Allow splitting long tasks into smaller chunks
+    # Allow splitting long events into smaller chunks
     split = forms.BooleanField(
         required=False,
         label="Split into smaller blocks?",

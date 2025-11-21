@@ -3,42 +3,65 @@
     Description: HTML template extension for the export calendar view page.
     Authors: Kiara Grimsley
     Created: November 7, 2025
-    Last Modified: November 7, 2025
+    Last Modified: November 17, 2025
 -->
 
+
 {% extends 'base.html' %}
+{% load static %}
 
-{% block title %}View and Export Calendar{% endblock %} <!-- Page Title -->
+{% block title %}
 
-{% block content %} <!-- Page Content -->
-    <h2>PLACEHOLDER FOR CALENDAR VIEW</h2> <!-- TODO: Implement calendar view -->
+  <title>Calendar</title>
 
-    <h3>Imported Events (Temporary List for Testing)</h3>
+  <!-- Full Calendar import -->
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.7/index.global.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.7/index.global.min.js"></script>
+  <script src="{% static 'scheduler/js/calendar.js' %}"></script>
+  <style>
+      #calendar {
+          max-width: 1100px;
+          margin: 2rem auto;
+      }
+  </style>
+
+{% endblock %}
+
+{% block content %}
+
+    <h2 style="text-align:center;">Calendar</h2>
+
+    <div id="calendar" data-initial-date="{{ initial_date }}"></div>
+
+
+  {% if DEBUG %}
+    <h3>Imported Events (Debug)</h3>
     <ul>
-    {% for event in events %}
-    <li style="margin-bottom: 0.75rem;">
-      <strong>{% firstof event.name event.title "(No Title)" %}</strong>
-      — {{ event.start }} to {{ event.end }}
+      {% for event in debug_events %}
+        <li style="margin-bottom: 0.75rem;">
+          <strong>{% firstof event.name event.title "(No Title)" %}</strong>
+          — {{ event.start }} to {{ event.end }}
 
-      {% if event.description %}
-        <br><small><strong>Description:</strong> {{ event.description }}</small>
-      {% endif %}
+          {% if event.description %}
+            <br><small><strong>Description:</strong> {{ event.description }}</small>
+          {% endif %}
 
-      {% if event.event_type %}
-        <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
-      {% endif %}
-    </li>
-  {% empty %}
-    <li>No imported events yet. Please upload a .ics file first.</li>
-  {% endfor %}
-</ul>
+          {% if event.event_type %}
+            <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
+          {% endif %}
+        </li>
+        {% empty %}
+          <li>No imported events yet. Please upload a .ics file first.</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
 
+  <hr>
+  <h2>Export your Calendar</h2>
+  <p>Click the button below to download your .ics file.</p>
+  <form method="post" action="{% url 'scheduler:view_calendar' %}"> <!--Changed from GET to POST to flow with view_calendar logic-->
+      {% csrf_token %} <!--Required for security-->
+      <button type="submit">Download .ics File</button>
+  </form>
 
-    <hr>
-    <h2>Export your Calendar</h2>
-    <p>Click the button below to download your .ics file.</p>
-    <form method="post" action="{% url 'scheduler:view_calendar' %}"> <!--Changed from GET to POST to flow with view_calendar logic-->
-        {% csrf_token %} <!--Required for security-->
-        <button type="submit">Download .ics File</button>
-    </form>
 {% endblock %}

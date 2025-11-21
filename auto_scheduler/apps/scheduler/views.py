@@ -11,17 +11,19 @@ import logging
 from django.shortcuts import render, redirect
 from django.core.files.storage import default_storage # Whatever our defined storage is
 from django.urls import reverse
-from django.http import StreamingHttpResponse
+from django.http import StreamingHttpResponse, JsonResponse
+from django.conf import settings
 from django.forms import formset_factory
 from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.decorators import login_required
 
-from .forms import ICSUploadForm, TaskForm, StudyPreferencesForm
+from .forms import ICSUploadForm, EventForm, StudyPreferencesForm
 
 from .utils.icsImportExport import import_ics, export_ics
-from .utils.scheduler import schedule_tasks
+from .utils.scheduler import schedule_events
 from .utils.constants import * # SESSION_*, LOGGER_NAME
+from datetime import date
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -62,20 +64,20 @@ def add_events(request): # TODO: Ella + Hart
 
     logger.info("Add Events view accessed for session=%s", request.session.session_key)
 
-    TaskFormSet = formset_factory(TaskForm, extra=1, can_delete=False, max_num=30)
+    EventFormSet = formset_factory(EventForm, extra=1, can_delete=False, max_num=30)
 
     if request.method == "POST":
-        logger.info("add_events: binding TaskFormSet from POST data")
-        formset = TaskFormSet(request.POST, prefix="tasks")
+        logger.info("add_events: binding EventFormSet from POST data")
+        formset = EventFormSet(request.POST, prefix="events")
         logger.info("add_events: formset.is_valid? %s", formset.is_valid)
 
         if formset.is_valid():
-            task_requests = []
+            event_requests = []
             logger.info("add_events: processing %d forms", len(formset.cleaned_data))
             for form_data in formset.cleaned_data:
                 if not form_data or form_data.get("DELETE"):
                     continue
-                task_requests.append({
+                event_requests.append({
                     "title": form_data["title"],
                     "description": form_data.get("description", ""),
                     "duration_minutes": form_data["duration_minutes"],
@@ -89,16 +91,16 @@ def add_events(request): # TODO: Ella + Hart
                     "split": form_data.get("split") or False,
                     "split_minutes": form_data.get("split_minutes"),
                 })
-            logger.info("add_events: storing %d task requests to session", len(task_requests))
-            request.session[SESSION_TASK_REQUESTS] = task_requests
+            logger.info("add_events: storing %d event requests to session", len(event_requests))
+            request.session[SESSION_EVENT_REQUESTS] = event_requests
             request.session[SESSION_SCHEDULE_UPDATE] = True # Mark schedule for update
             logger.info("add_events: redirecting to scheduler:view_calendar")
             # For MVP, we redirect to view/export page; scheduling engine can use these later.
             return redirect("scheduler:view_calendar")
     else:
-        initial = request.session.get(SESSION_TASK_REQUESTS, [])
-        logger.info("add_events: GET detected; preloading %d existing task requests", len(initial))
-        formset = TaskFormSet(initial=initial, prefix="tasks")
+        initial = request.session.get(SESSION_EVENT_REQUESTS, [])
+        logger.info("add_events: GET detected; preloading %d existing event requests", len(initial))
+        formset = EventFormSet(initial=initial, prefix="events")
 
     # Also pass a quick count of imported events for UX context
     imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
@@ -113,22 +115,24 @@ def view_calendar(request):
     logger.info("view_calendar: entered (method=%s, session_key=%s)",
                 request.method, getattr(request.session, "session_key", None))
 
+    # Get scheduled events from session, or schedule if needed
     scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
     if not scheduled_events or request.session.get(SESSION_SCHEDULE_UPDATE, True):
-        logger.info("view_calendar: no scheduled events in session; scheduling now")
+        logger.info("view_calendar: reschedule needed; scheduling now")
         imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-        task_requests = request.session.get(SESSION_TASK_REQUESTS, [])
+        event_requests = request.session.get(SESSION_EVENT_REQUESTS, [])
 
-        # Schedule any tasks
-        logger.info("view_calendar: scheduling %d tasks against %d imported events",
-                    len(task_requests), len(imported_events))
-        scheduled_events = imported_events + schedule_tasks(task_requests, imported_events)
+        # Schedule any events
+        logger.info("view_calendar: scheduling %d events against %d imported events",
+                    len(event_requests), len(imported_events))
+        scheduled_events = imported_events + schedule_events(event_requests, imported_events)
         request.session[SESSION_SCHEDULED_EVENTS] = scheduled_events
         request.session[SESSION_SCHEDULE_UPDATE] = False # Reset update flag
         request.session.modified = True # Ensure session is saved
 
     logger.info("view_calendar: total events to display/export: %d", len(scheduled_events))
 
+    # ICS Export
     if request.method == 'POST':
         ics_stream = export_ics(scheduled_events)
         resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
@@ -136,9 +140,48 @@ def view_calendar(request):
         logger.info("view_calendar: ICS response prepared (events_total=%d); returning download", len(scheduled_events))
         return resp
 
-    # GET: just render the page
+    # Determine month/year to show
+    month = request.GET.get('month')
+    year = request.GET.get('year')
+    if not month or not year:
+        today = date.today()
+        month = today.month
+        year = today.year
+    else:
+        month = int(month)
+        year = int(year)
+
+    # Render context
+    ctx = {
+        'DEBUG': settings.DEBUG,
+        'debug_events': scheduled_events,
+        'initial_date': f"{year:04d}-{month:02d}-01",
+    }
     logger.info("view_calendar: GET; rendering page with %d events", len(scheduled_events))
-    return render(request, 'view_calendar.html', {'events': scheduled_events})
+    return render(request, 'view_calendar.html', ctx)
+
+def event_feed(request):
+    '''
+    Provides scheduled events in JSON format for FullCalendar.
+    Gets rendered by view_calendar template.
+    '''
+    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
+
+    # Convert your stored events into FullCalendar format
+    formatted = []
+    for ev in scheduled_events:
+        formatted.append({
+            "id": ev.get("id", None) or ev.get("uid", None),
+            "title": ev.get("name") or ev.get("title") or "(No Title)",
+            "start": ev.get("start"),
+            "end": ev.get("end"),
+            "allDay": False,
+            "extendedProps": ev,  # keep all original data
+        })
+
+    return JsonResponse(formatted, safe=False)
+
+
 
 @login_required
 def preferences(request):

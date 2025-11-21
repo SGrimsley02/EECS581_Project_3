@@ -10,7 +10,7 @@ DTSTART;TZID=America/Chicago:20251020T090000
 DTEND;TZID=America/Chicago:20251020T170000
 RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR
 LOCATION:Company HQ – Office 401
-DESCRIPTION:Standard work hours for full-time employee. Includes team meetings, individual work, and project tasks.
+DESCRIPTION:Standard work hours for full-time employee. Includes team meetings, individual work, and project #!&*s.
 STATUS:CONFIRMED
 BEGIN:VALARM
 TRIGGER:-PT30M
@@ -26,7 +26,7 @@ DTSTART;TZID=America/Chicago:20251021T100000
 DTEND;TZID=America/Chicago:20251021T110000
 RRULE:FREQ=WEEKLY;BYDAY=TU
 LOCATION:Conference Room B / Zoom Link
-DESCRIPTION:Project status updates, task assignments, and sprint reviews.
+DESCRIPTION:Project status updates, @#&^ assignments, and sprint reviews.
 STATUS:CONFIRMED
 BEGIN:VALARM
 TRIGGER:-PT15M

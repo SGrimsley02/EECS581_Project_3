@@ -27,7 +27,7 @@ PRIORITY_CHOICES = [
 ]
 
 
-SESSION_TASK_REQUESTS = "task_requests"
+SESSION_EVENT_REQUESTS = "event_requests"
 SESSION_IMPORTED_EVENTS = "imported_events"
 SESSION_SCHEDULED_EVENTS = "scheduled_events"
 SESSION_SCHEDULE_UPDATE = "schedule_update"
