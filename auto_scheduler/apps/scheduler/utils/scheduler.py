@@ -25,7 +25,7 @@ PRIORITY_ORDER = {
 
 def preview_schedule_order(task_requests_raw):
     # If you already have expand_task_request, keep using it; else pass through
-    tasks = [expand_task_request(t) for t in task_requests_raw]
+    tasks = [expand_event_request(t) for t in task_requests_raw]
     return sorted(tasks, key=schedule_sort_key)
 
 # Used in views.py for the Export page to preview the order of events
