@@ -7,7 +7,7 @@
                 light styling for layout and alerts.
     Authors: Kiara Grimsley, Audrey Pan
     Created: November 7, 2025
-    Last Modified: November 18, 2025
+    Last Modified: November 22, 2025
 -->
 {% load static %}
 <!-- Metadata -->
@@ -35,10 +35,30 @@
         {% if messages %}
             <div class="messages">
                 {% for message in messages %}
-                    <div class="message {% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</div>
+                    <div class="message {% if message.tags %}{{ message.tags }}{% endif %}">
+                        {{ message }}
+
+                        {# If this is the study-preferences recap reminder, show action buttons #}
+                        {% if "prefs-recap" in message.tags %}
+                            <div class="recap-actions" style="margin-top: 8px;">
+                                <a href="{% url 'scheduler:preferences' %}"
+                                class="btn-update"
+                                style="margin-right: 10px; text-decoration: underline;">
+                                Update Now
+                                </a>
+
+                                <a href="{% url 'scheduler:dismiss_preferences_recap' %}?next={{ request.path }}"
+                                class="btn-dismiss"
+                                style="text-decoration: underline; color: #555;">
+                                Dismiss
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
                 {% endfor %}
             </div>
         {% endif %}
+
 
         {% block content %}
         <!-- Page-specific content goes here -->
