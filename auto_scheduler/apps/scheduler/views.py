@@ -28,21 +28,40 @@ from datetime import date, timedelta
 from apps.scheduler.utils.scheduler import preview_schedule_order
 import copy
 
-SESSION_IMPORTED_EVENTS = "imported_events" # parsed from ICS
-SESSION_EVENT_REQUESTS   = "event_requests" # user-entered tasks (requests)
-
-SESSION_UNDO_STACK = "schedule_undo_stack"
-SESSION_REDO_STACK = "schedule_redo_stack"
-
-PREFERENCES_RECAP_DAYS = 14
-SESSION_PREF_LAST_UPDATED = "preferences_last_updated"
-SESSION_PREF_RECAP_DISMISSED = "preferences_recap_dismissed"
-
 from django.contrib import messages
 
 logger = logging.getLogger(LOGGER_NAME)
 
 UTC = pytz.UTC
+
+# ============================================================
+#  VIEWS
+# ============================================================
+
+@login_required
+def home(request):
+    '''
+    Home view that redirects to preferences.
+    '''
+    return redirect('scheduler:preferences')
+
+def auth_view(request):
+    '''
+    View for handling user authentication (signup).
+    Renders signup forms and processes authentication.
+    '''
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST or None)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Account created successfully. Please log in.")
+            logger.info("New user account created.")
+            return redirect('scheduler:login')
+        else:
+            logger.warning("Signup form invalid: %s", form.errors)
+    else:
+        form = UserCreationForm()
+    return render(request, 'registration/signup.html', {'form': form})
 
 @login_required
 def upload_ics(request):
@@ -295,17 +314,12 @@ def event_feed(request):
 
     return JsonResponse(formatted, safe=False)
 
-
-
 @login_required
 def preferences(request):
     """
     Create/update study preferences. Stores selections in session (JSON-safe).
     Shows a success message on save.
     """
-    # Show recap banner if preferences haven't been updated in a while
-    check_preferences_recap(request)
-    
     # Pull previously saved preferences (if any) from the session
     initial = request.session.get(SESSION_PREFERENCES, None)
 
@@ -347,31 +361,6 @@ def preferences(request):
     # Render the page with the form
     return render(request, 'preferences.html', {'form': form})
 
-def check_preferences_recap(request):
-    """
-    Add a recap reminder message if the user's study preferences
-    haven't been updated in PREFERENCES_RECAP_DAYS and they haven't dismissed it.
-    """
-    if request.session.get(SESSION_PREF_RECAP_DISMISSED):
-        return
-
-    last_pref_str = request.session.get(SESSION_PREF_LAST_UPDATED)
-    if not last_pref_str:
-        return
-
-    try:
-        last_pref_date = date.fromisoformat(last_pref_str)
-    except ValueError:
-        return
-
-    if date.today() - last_pref_date >= timedelta(days=PREFERENCES_RECAP_DAYS):
-        messages.info(
-            request,
-            "It’s been about two weeks since you updated your study preferences. "
-            "You can review them on the Preferences page.",
-            extra_tags="prefs-recap"
-        )
-        
 @login_required
 def dismiss_preferences_recap(request):
     """
@@ -385,31 +374,44 @@ def dismiss_preferences_recap(request):
     next_url = request.GET.get("next") or "scheduler:upload_ics"
     return redirect(next_url)
 
+# ============================================================
+#  MESSAGE
+# ============================================================
 
-@login_required
-def home(request):
-    '''
-    Home view that redirects to preferences.
-    '''
-    return redirect('scheduler:preferences')
+def check_preferences_recap(request):
+    """
+    Add a recap reminder message if the user's study preferences
+    haven't been updated in PREFERENCES_RECAP_DAYS and they haven't dismissed it.
+    """
+    if request.session.get(SESSION_PREF_RECAP_DISMISSED):
+        return
 
-def auth_view(request):
-    '''
-    View for handling user authentication (signup).
-    Renders signup forms and processes authentication.
-    '''
-    if request.method == 'POST':
-        form = UserCreationForm(request.POST or None)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Account created successfully. Please log in.")
-            logger.info("New user account created.")
-            return redirect('scheduler:login')
-        else:
-            logger.warning("Signup form invalid: %s", form.errors)
+    last_pref_str = request.session.get(SESSION_PREF_LAST_UPDATED)
+    if not last_pref_str:
+        # missing --> treat as very old date
+        last_pref_date = date.min
+        request.session[SESSION_PREF_LAST_UPDATED] = last_pref_date.isoformat()
+        request.session.modified = True
     else:
-        form = UserCreationForm()
-    return render(request, 'registration/signup.html', {'form': form})
+        try:
+            last_pref_date = date.fromisoformat(last_pref_str)
+        except ValueError:
+            # If something weird is stored, fall back to "very old"
+            last_pref_date = date.min
+            request.session[SESSION_PREF_LAST_UPDATED] = last_pref_date.isoformat()
+            request.session.modified = True
+
+    if date.today() - last_pref_date >= timedelta(days=PREFERENCES_RECAP_DAYS):
+        messages.info(
+            request,
+            "It's been a while since you updated your study preferences. "
+            "You can review them on the Preferences page.",
+            extra_tags="prefs-recap",
+        )
+        
+# ============================================================
+#  HELPERS
+# ============================================================
 
 def _get_current_state(request):
     return {
@@ -421,14 +423,12 @@ def _get_current_state(request):
         ),
     }
 
-
 def _apply_state(request, state):
     request.session[SESSION_IMPORTED_EVENTS] = state.get("imported_events", [])
     request.session[SESSION_EVENT_REQUESTS] = state.get("event_requests", [])
     request.session[SESSION_SCHEDULE_UPDATE] = True
     request.session.pop(SESSION_SCHEDULED_EVENTS, None)
     request.session.modified = True
-
 
 def _push_undo(request):
     undo_stack = request.session.get(SESSION_UNDO_STACK, [])
