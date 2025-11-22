@@ -3,7 +3,7 @@
     Description: CSS styles for the standard base layout.
     Authors: Kiara Grimsley, Audrey Pan
     Created: November 18, 2025
-    Last Modified: November 18, 2025
+    Last Modified: November 22, 2025
 */
 
 .messages {
@@ -26,4 +26,18 @@ margin-bottom: 8px;
 display: flex;
 align-items: center;
 gap: 10px;
+}
+
+.btn-update {
+    font-weight: bold;
+    color: #003366;
+}
+
+.btn-dismiss {
+    color: #666;
+}
+
+.message.prefs-recap {
+    border-left: 4px solid #003366;
+    padding-left: 10px;
 }

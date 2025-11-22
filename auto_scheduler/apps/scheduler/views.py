@@ -4,7 +4,7 @@ Description: Views for handling scheduler functionality and the
                 study preferences form.
 Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan, Reeny Huang
 Created: October 26, 2025
-Last Modified: November 19, 2025
+Last Modified: November 22, 2025
 '''
 import logging
 
@@ -24,7 +24,7 @@ from .utils.icsImportExport import import_ics, export_ics
 from .utils.scheduler import schedule_events
 import pytz
 from .utils.constants import * # SESSION_*, LOGGER_NAME
-from datetime import date
+from datetime import date, timedelta
 from apps.scheduler.utils.scheduler import preview_schedule_order
 import copy
 
@@ -33,6 +33,11 @@ SESSION_EVENT_REQUESTS   = "event_requests" # user-entered tasks (requests)
 
 SESSION_UNDO_STACK = "schedule_undo_stack"
 SESSION_REDO_STACK = "schedule_redo_stack"
+
+PREFERENCES_RECAP_DAYS = 14
+SESSION_PREF_LAST_UPDATED = "preferences_last_updated"
+SESSION_PREF_RECAP_DISMISSED = "preferences_recap_dismissed"
+
 from django.contrib import messages
 
 logger = logging.getLogger(LOGGER_NAME)
@@ -45,7 +50,9 @@ def upload_ics(request):
     Handle ICS file upload events.
     Renders upload form and processes uploaded files.
     '''
-
+    # Show recap banner if preferences haven't been updated in a while
+    check_preferences_recap(request)
+    
     if request.method == 'POST': # POST request on form submission
         form = ICSUploadForm(request.POST, request.FILES)
         if form.is_valid(): # For now just if ics file exists
@@ -73,6 +80,8 @@ def add_events(request): # TODO: Ella + Hart
     '''
     View to add new events to a calendar after ICS upload.
     '''
+    # Show recap banner if preferences haven't been updated in a while
+    check_preferences_recap(request)
 
     logger.info("Add Events view accessed for session=%s", request.session.session_key)
 
@@ -126,6 +135,9 @@ def add_events(request): # TODO: Ella + Hart
 def view_calendar(request):
     logger.info("view_calendar: entered (method=%s, session_key=%s)",
                 request.method, getattr(request.session, "session_key", None))
+    
+    # Show recap banner if preferences haven't been updated in a while
+    check_preferences_recap(request)
 
     # Get scheduled events from session, or schedule if needed
     scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
@@ -291,6 +303,9 @@ def preferences(request):
     Create/update study preferences. Stores selections in session (JSON-safe).
     Shows a success message on save.
     """
+    # Show recap banner if preferences haven't been updated in a while
+    check_preferences_recap(request)
+    
     # Pull previously saved preferences (if any) from the session
     initial = request.session.get(SESSION_PREFERENCES, None)
 
@@ -310,6 +325,11 @@ def preferences(request):
             # Store updated preferences in the session
             request.session[SESSION_PREFERENCES] = cleaned
             request.session[SESSION_SCHEDULE_UPDATE] = True # Mark schedule for update
+            
+            # Remember when preferences were last updated (for recap prompt)
+            request.session[SESSION_PREF_LAST_UPDATED] = date.today().isoformat()
+            # user just updated prefs → reminder should be allowed again in the future
+            request.session[SESSION_PREF_RECAP_DISMISSED] = False
             request.session.modified = True
 
             # Show success banner on the next load
@@ -326,6 +346,45 @@ def preferences(request):
 
     # Render the page with the form
     return render(request, 'preferences.html', {'form': form})
+
+def check_preferences_recap(request):
+    """
+    Add a recap reminder message if the user's study preferences
+    haven't been updated in PREFERENCES_RECAP_DAYS and they haven't dismissed it.
+    """
+    if request.session.get(SESSION_PREF_RECAP_DISMISSED):
+        return
+
+    last_pref_str = request.session.get(SESSION_PREF_LAST_UPDATED)
+    if not last_pref_str:
+        return
+
+    try:
+        last_pref_date = date.fromisoformat(last_pref_str)
+    except ValueError:
+        return
+
+    if date.today() - last_pref_date >= timedelta(days=PREFERENCES_RECAP_DAYS):
+        messages.info(
+            request,
+            "It’s been about two weeks since you updated your study preferences. "
+            "You can review them on the Preferences page.",
+            extra_tags="prefs-recap"
+        )
+        
+@login_required
+def dismiss_preferences_recap(request):
+    """
+    Allow user to dismiss the study-preferences recap reminder
+    until the next time they update their preferences.
+    """
+    request.session[SESSION_PREF_RECAP_DISMISSED] = True
+    request.session.modified = True
+
+    # Redirect back to the previous page if possible
+    next_url = request.GET.get("next") or "scheduler:upload_ics"
+    return redirect(next_url)
+
 
 @login_required
 def home(request):
