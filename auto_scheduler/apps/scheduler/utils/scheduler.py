@@ -1,7 +1,7 @@
 '''
 Name: apps/scheduler/scheduler.py
-Description: Module for scheduling events
-Authors: Hart Nurnberg, Audrey Pan, Kiara Grimsley
+Description: Module for scheduling tasks
+Authors: Hart Nurnberg, Audrey Pan, Kiara Grimsley, Ella Nguyen
 Created: November 7, 2025
 Last Modified: November 16, 2025
 '''
@@ -9,10 +9,30 @@ Last Modified: November 16, 2025
 from datetime import datetime, date, time, timedelta
 from typing import List, Tuple, Dict, Optional
 import copy
+import pytz
 from pytz import UTC
 import logging
 
 logger = logging.getLogger("apps.scheduler")
+
+UTC = pytz.UTC
+
+PRIORITY_ORDER = {
+    "high": 0,
+    "medium": 1,
+    "low": 2
+}
+
+def preview_schedule_order(task_requests_raw):
+    # If you already have expand_task_request, keep using it; else pass through
+    tasks = [expand_event_request(t) for t in task_requests_raw]
+    return sorted(tasks, key=schedule_sort_key)
+
+# Used in views.py for the Export page to preview the order of events
+def schedule_sort_key(t):
+    pr = PRIORITY_ORDER.get(t.get("priority", "medium"), 1)
+    dur = int(t.get("duration_minutes", 0) or 0)
+    return (pr, -dur)
 
 # Data structures used internally are as follows:
 # BusySlot = (start_datetime, end_datetime)
@@ -213,11 +233,15 @@ def schedule_events(
         return invert_slots(merge_busy_slots(current_busy), window_start, window_end)
 
     priority_order = {"high": 0, "medium": 1, "low": 2}
-    events = [expand_event_request(e) for e in event_requests_raw]
+    events = [expand_event_request(t) for t in event_requests_raw]
     events_sorted = sorted(
         events,
-        key=lambda x: (priority_order.get(x.get("priority","medium"), 1), -int(x.get("duration_minutes",0))))
-
+        key=lambda t: (
+        PRIORITY_ORDER.get(t.get("priority", "medium"), 1),
+        -int(t.get("duration_minutes", 0))
+        )
+    )
+    
     scheduled_events = []
     logger.info("schedule_events: window=[%s, %s) initial_busy=%d events_sorted=%d",
                 window_start, window_end, len(current_busy), len(events_sorted))

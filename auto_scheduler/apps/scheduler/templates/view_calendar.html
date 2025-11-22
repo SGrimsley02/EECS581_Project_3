@@ -1,9 +1,9 @@
 <!--
     Name: apps/scheduler/templates/exportView.html
     Description: HTML template extension for the export calendar view page.
-    Authors: Kiara Grimsley
+    Authors: Kiara Grimsley, Ella Nguyen
     Created: November 7, 2025
-    Last Modified: November 17, 2025
+    Last Modified: November 11, 2025
 -->
 
 
@@ -37,31 +37,109 @@
   {% if DEBUG %}
     <h3>Imported Events (Debug)</h3>
     <ul>
-      {% for event in debug_events %}
-        <li style="margin-bottom: 0.75rem;">
-          <strong>{% firstof event.name event.title "(No Title)" %}</strong>
-          — {{ event.start }} to {{ event.end }}
+    {% for event in imported_events %}
+    <li style="margin-bottom: 0.75rem;">
+      <strong>{% firstof event.name event.title "(No Title)" %}</strong>
+
+      {% if event.priority %}
+    <span class="priority-badge priority-{{ event.priority|lower }}">
+      {{ event.priority|title }}
+    </span>
+  {% endif %}
+
+      — {{ event.start }} to {{ event.end }}
 
           {% if event.description %}
             <br><small><strong>Description:</strong> {{ event.description }}</small>
           {% endif %}
 
-          {% if event.event_type %}
-            <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
-          {% endif %}
-        </li>
-        {% empty %}
-          <li>No imported events yet. Please upload a .ics file first.</li>
-      {% endfor %}
-    </ul>
-  {% endif %}
+      {% if event.event_type %}
+        <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
+      {% endif %}
+
+      <!-- DELETE IMPORTED EVENT -->
+        <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="delete_type" value="imported">
+          <input type="hidden" name="delete_index" value="{{ forloop.counter0 }}">
+          <button type="submit">Delete</button>
+        </form>
+      </li>
+    {% empty %}
+      <li>No imported events yet. Please upload a .ics file first.</li>
+    {% endfor %}
+  </ul>
+
+  <hr>
+
+  <!-- TASK REQUESTS (these are the “generated schedule” inputs) -->
+  <h3>Task Requests (to be scheduled)</h3>
+  <ul>
+    {% for t in event_requests %}
+      <li style="margin-bottom: 0.75rem;">
+        <strong>{% firstof t.title t.name "(No Title)" %}</strong>
+        <span>
+          ({{ t.priority|title }}, {{ t.duration_minutes }} min)
+        </span>
+
+        {% if t.description %}
+          <br><small><strong>Description:</strong> {{ t.description }}</small>
+        {% endif %}
+
+        <!-- DELETE TASK REQUEST -->
+        <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="delete_type" value="task">
+          <input type="hidden" name="delete_index" value="{{ forloop.counter0 }}">
+          <button type="submit">Delete</button>
+        </form>
+      </li>
+    {% empty %}
+      <li>No task requests yet. Add some on the "Add Events" page.</li>
+    {% endfor %}
+  </ul>
+
+  <hr>
+
+<h3>Scheduling Order (Preview)</h3>
+<ol>
+  {% for t in preview_tasks %}
+    <li>
+      #{{ t.schedule_order }} —
+      <strong>{{ t.title }}</strong>
+      <small>({{ t.priority|title }}, {{ t.duration_minutes }} min)</small>
+    </li>
+  {% empty %}
+    <li>No tasks queued for scheduling.</li>
+  {% endfor %}
+</ol>
+
+    <hr>
+
+    <h2>Edit History</h2>
+    <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="undo">
+      <button type="submit" {% if not undo_available %}disabled{% endif %}>Undo</button>
+    </form>
+
+    <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline; margin-left:0.5rem;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="redo">
+      <button type="submit" {% if not redo_available %}disabled{% endif %}>Redo</button>
+    </form>
 
   <hr>
   <h2>Export your Calendar</h2>
   <p>Click the button below to download your .ics file.</p>
   <form method="post" action="{% url 'scheduler:view_calendar' %}"> <!--Changed from GET to POST to flow with view_calendar logic-->
       {% csrf_token %} <!--Required for security-->
+        <input type="hidden" name="action" value="export">
       <button type="submit">Download .ics File</button>
   </form>
+
+{% endif %}
 
 {% endblock %}
