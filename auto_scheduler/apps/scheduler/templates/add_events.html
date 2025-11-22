@@ -1,9 +1,9 @@
 <!--
     Name: apps/scheduler/templates/addEvents.html
     Description: HTML template extension for the add events page.
-    Authors: Kiara Grimsley, Ella Nguyen
+    Authors: Kiara Grimsley, Ella Nguyen, Hart Nurnberg
     Created: November 7, 2025
-    Last Modified: November 9, 2025
+    Last Modified: November 22, 2025
 -->
 
 {# auto_scheduler/apps/scheduler/templates/add_events.html #}
@@ -75,6 +75,10 @@
             <div style="display:flex;align-items:flex-end;gap:8px;">
               <div>
                 <label>{{ form.recurring }} Repeat every week?</label>
+              </div>
+              <div>
+                <label>Repeat until</label>
+                {{ form.recurring_until }}
               </div>
             </div>
           </div>

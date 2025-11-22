@@ -3,7 +3,7 @@ Name: apps/scheduler/scheduler.py
 Description: Module for scheduling tasks
 Authors: Hart Nurnberg, Audrey Pan, Kiara Grimsley
 Created: November 7, 2025
-Last Modified: November 16, 2025
+Last Modified: November 22, 2025
 '''
 
 from datetime import datetime, date, time, timedelta
@@ -19,7 +19,7 @@ logger = logging.getLogger("apps.scheduler")
 # TaskRequest = {
 #   "title","description","duration_minutes","priority","event_type",
 #   "date_start","date_end","time_start","time_end","split","split_minutes",
-#   "recurring"
+#   "recurring", "recurring_until"
 # }
 # (date/time fields may be None or actual date/time objects)
 # ScheduledEvent = {"title","description","start","end","event_type","priority"}
@@ -129,6 +129,8 @@ def expand_task_request(raw_task: dict):
     t["split_minutes"] = int(t["split_minutes"]) if t.get("split_minutes") else None
     t["split"] = bool(t.get("split"))
     t["recurring"] = bool(t.get("recurring"))
+    if t.get("recurring_until"):
+        t["recurring_until"] = date.fromisoformat(t["recurring_until"])
     logger.debug("expand_task_request: out=%r", t)
     return t
 
@@ -180,6 +182,72 @@ def split_into_chunks(duration_minutes: int, split: bool, split_minutes: Optiona
     logger.debug("split_into_chunks: result=%r", chunks)
     return chunks
 
+def schedule_single_task(
+    task: dict,
+    chunk_minutes: int,
+    current_busy: List[Tuple[datetime, datetime]],
+    scheduled_events: List[dict],
+    window_start: datetime,
+    window_end: datetime,
+    range_start: Optional[datetime] = None,
+    range_end: Optional[datetime] = None,
+) -> Tuple[Optional[datetime], Optional[datetime]]:
+    """
+    Schedule a single chunk of chunk_minutes minutes for task.
+    - Looks for a free slot within [range_start, range_end) if provided,
+      otherwise within the global [window_start, window_end) range.
+    - Mutates `scheduled_events` and `current_busy` if it finds a placement.
+
+    Returns:
+        (start_dt, end_dt) on success, or (None, None) if no fit is found.
+    """
+    needed = timedelta(minutes=chunk_minutes)
+
+    # Use either the caller-supplied range or the global scheduling window
+    local_ws = range_start or window_start
+    local_we = range_end or window_end
+
+    # Build free slots within the chosen range
+    merged_busy = merge_busy_slots(current_busy)
+    free_slots = invert_slots(merged_busy, local_ws, local_we)
+
+    # Generate candidate windows based on task's date/time constraints
+    candidates: List[Tuple[datetime, datetime]] = []
+    for free_s, free_e in free_slots:
+        for cand in generate_candidate_windows_for_task(task, free_s, free_e):
+            candidates.append(cand)
+
+    candidates.sort(key=lambda x: x[0])
+
+    for cand_s, cand_e in candidates:
+        if (cand_e - cand_s) >= needed:
+            start_dt = cand_s
+            end_dt = start_dt + needed
+
+            new_ev = {
+                "name": task.get("title"),
+                "description": task.get("description"),
+                "start": start_dt.isoformat(),  # tz-aware UTC
+                "end": end_dt.isoformat(),      # tz-aware UTC
+                "event_type": task.get("event_type"),
+                "priority": task.get("priority"),
+            }
+            scheduled_events.append(new_ev)
+            logger.info(
+                "schedule_single_task: scheduled title=%r start=%s end=%s",
+                new_ev["name"], start_dt, end_dt
+            )
+
+            # Update busy slots in-place so callers see the new state
+            current_busy.append((start_dt, end_dt))
+            merged = merge_busy_slots(current_busy)
+            current_busy[:] = merged
+
+            return start_dt, end_dt
+
+    # No fit found
+    return None, None
+
 def schedule_tasks(
     task_requests_raw: List[dict],
     imported_events: List[dict],
@@ -211,9 +279,6 @@ def schedule_tasks(
     busy = get_busy_from_imported(imported_events)
     current_busy = merge_busy_slots(busy[:])
 
-    def compute_free():
-        return invert_slots(merge_busy_slots(current_busy), window_start, window_end)
-
     priority_order = {"high": 0, "medium": 1, "low": 2}
     tasks = [expand_task_request(t) for t in task_requests_raw]
     tasks_sorted = sorted(
@@ -230,80 +295,22 @@ def schedule_tasks(
                     task.get("split"), task.get("split_minutes"))
         chunks = split_into_chunks(task["duration_minutes"], task.get("split", False), task.get("split_minutes"))
         for chunk_minutes in chunks:
-            placed = False
-            free_slots = compute_free()
-            logger.debug("schedule_tasks: chunk=%d free_slots=%d", chunk_minutes, len(free_slots))
-            candidates = []
-            for free_s, free_e in free_slots:
-                for cand in generate_candidate_windows_for_task(task, free_s, free_e):
-                    candidates.append(cand)
-            candidates.sort(key=lambda x: x[0])
-            needed = timedelta(minutes=chunk_minutes)
-            for cand_s, cand_e in candidates:
-                if (cand_e - cand_s) >= needed:
-                    start_dt = cand_s
-                    end_dt = start_dt + needed
-                    new_ev = {
-                        "name": task.get("title"),
-                        "description": task.get("description"),
-                        "start": start_dt.isoformat(),  # tz-aware UTC
-                        "end": end_dt.isoformat(),      # tz-aware UTC
-                        "event_type": task.get("event_type"),
-                        "priority": task.get("priority"),
-                    }
-                    scheduled_events.append(new_ev)
-                    logger.info("schedule_tasks: scheduled title=%r start=%s end=%s", new_ev["name"], start_dt, end_dt)
-                    current_busy.append((start_dt, end_dt))
-                    current_busy = merge_busy_slots(current_busy)
-                    placed = True
-                    
-                    # Weekly recurring logic
-                    if task.get("recurring"):
-                        # If user set a latest date, stop recurring after that, else, use window_end
-                        recurrence_end_date = task.get("date_end") or window_end.date()
-                        next_start = start_dt + timedelta(weeks=1)
-                        next_end = end_dt + timedelta(weeks=1)
+            # First, schedule this chunk anywhere in the global window
+            start_dt, end_dt = schedule_single_task(
+                task=task,
+                chunk_minutes=chunk_minutes,
+                current_busy=current_busy,
+                scheduled_events=scheduled_events,
+                window_start=window_start,
+                window_end=window_end,
+            )
 
-                        # Schedule recurring event until either window_end or optional end_date is reached
-                        while next_start < window_end and next_start.date() <= recurrence_end_date:
-                            # Simple conflict check with current busy slots
-                            conflict = False
-                            for busy_s, busy_e in current_busy:
-                                if not (next_end <= busy_s or next_start >= busy_e):
-                                    conflict = True
-                                    break
-
-                            if conflict:
-                                logger.warning(
-                                    "schedule_tasks: recurring occurrence skipped "
-                                    "for title=%r on %s due to conflict",
-                                    task.get("title"), next_start
-                                )
-                            else:
-                                recur_ev = {
-                                    "name": task.get("title"),
-                                    "description": task.get("description"),
-                                    "start": next_start.isoformat(),
-                                    "end": next_end.isoformat(),
-                                    "event_type": task.get("event_type"),
-                                    "priority": task.get("priority"),
-                                    # Mark that this came from a recurring event (may or may not need)
-                                    "recurring_source": new_ev.get("start"),
-                                }
-                                scheduled_events.append(recur_ev)
-                                current_busy.append((next_start, next_end))
-                                current_busy = merge_busy_slots(current_busy)
-                                logger.info(
-                                    "schedule_tasks: scheduled recurring title=%r start=%s end=%s",
-                                    recur_ev["name"], next_start, next_end
-                                )
-
-                            # Move to the same time next week
-                            next_start += timedelta(weeks=1)
-                            next_end += timedelta(weeks=1)
-                    break
-            if not placed:
-                logger.warning("schedule_tasks: UNSCHEDULED title=%r minutes=%d (no fit)", task.get("title"), chunk_minutes)
+            if start_dt is None:
+                # Could not schedule this chunk at all
+                logger.warning(
+                    "schedule_tasks: UNSCHEDULED title=%r minutes=%d (no fit)",
+                    task.get("title"), chunk_minutes
+                )
                 scheduled_events.append({
                     "name": task.get("title"),
                     "description": task.get("description"),
@@ -314,6 +321,92 @@ def schedule_tasks(
                     "unscheduled": True,
                     "requested_minutes": chunk_minutes
                 })
+                continue  # Move on to next chunk
+
+            # Recurring weekly logic (try same time, then same day, then same week)
+            if task.get("recurring") and task.get("recurring_until"):
+                recurrence_end_date = task["recurring_until"]
+
+                original_time = start_dt.time()
+                occurrence_date = start_dt.date() + timedelta(weeks=1)
+
+                while occurrence_date <= recurrence_end_date:
+
+                    # Step 1: Try same time on same day
+                    exact_start = to_datetime(occurrence_date, original_time)
+                    exact_end = exact_start + timedelta(minutes=chunk_minutes)
+
+                    conflict = any(
+                        not (exact_end <= busy_s or exact_start >= busy_e)
+                        for busy_s, busy_e in current_busy
+                    )
+
+                    if not conflict:
+                        new_ev = {
+                            "name": task.get("title"),
+                            "description": task.get("description"),
+                            "start": exact_start.isoformat(),
+                            "end": exact_end.isoformat(),
+                            "event_type": task.get("event_type"),
+                            "priority": task.get("priority"),
+                        }
+                        scheduled_events.append(new_ev)
+                        current_busy.append((exact_start, exact_end))
+                        current_busy[:] = merge_busy_slots(current_busy)
+
+                        logger.info("schedule_tasks: recurring SAME TIME placement: %s", exact_start)
+                        occurrence_date += timedelta(weeks=1)
+                        continue
+
+                    # Step 2: Try another time same day
+                    day_start = to_datetime(occurrence_date, time.min)
+                    day_end   = to_datetime(occurrence_date, time.max)
+
+                    task_for_day = task.copy()
+                    task_for_day["date_start"] = occurrence_date
+                    task_for_day["date_end"]   = occurrence_date
+
+                    r_start, r_end = schedule_single_task(
+                        task=task_for_day,
+                        chunk_minutes=chunk_minutes,
+                        current_busy=current_busy,
+                        scheduled_events=scheduled_events,
+                        window_start=window_start,
+                        window_end=window_end,
+                        range_start=day_start,
+                        range_end=day_end,
+                    )
+
+                    # Step 3: Try same week any time
+                    if r_start is None:
+                        week_end_date = occurrence_date + timedelta(days=6)
+                        week_start_dt = day_start
+                        week_end_dt   = to_datetime(week_end_date, time.max)
+
+                        task_for_week = task.copy()
+                        task_for_week["date_start"] = occurrence_date
+                        task_for_week["date_end"]   = week_end_date
+
+                        r_start, r_end = schedule_single_task(
+                            task=task_for_week,
+                            chunk_minutes=chunk_minutes,
+                            current_busy=current_busy,
+                            scheduled_events=scheduled_events,
+                            window_start=window_start,
+                            window_end=window_end,
+                            range_start=week_start_dt,
+                            range_end=week_end_dt,
+                        )
+
+                        if r_start is None:
+                            logger.warning(
+                                "schedule_tasks: recurring occurrence UNSCHEDULED "
+                                "for title=%r in week starting %s",
+                                task.get("title"), occurrence_date
+                            )
+
+                    occurrence_date += timedelta(weeks=1)
+            # End of recurring logic
     logger.info("schedule_tasks: done scheduled=%d (incl. unscheduled placeholders=%d)",
                 sum(1 for e in scheduled_events if e.get("start")), len(scheduled_events))  # LOG
     return scheduled_events

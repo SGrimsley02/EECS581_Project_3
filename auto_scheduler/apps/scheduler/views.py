@@ -2,9 +2,9 @@
 Name: apps/scheduler/views.py
 Description: Views for handling scheduler functionality and the
                 study preferences form.
-Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan
+Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan, Hart Nurnberg
 Created: October 26, 2025
-Last Modified: November 16, 2025
+Last Modified: November 22, 2025
 '''
 import logging
 from django.shortcuts import render, redirect
@@ -83,6 +83,8 @@ def add_events(request): # TODO: Ella + Hart
                     "split": form_data.get("split") or False,
                     "split_minutes": form_data.get("split_minutes"),
                     "recurring": form_data.get("recurring") or False,
+                    "recurring_until": form_data.get("recurring_until").isoformat()
+                        if form_data.get("recurring_until") else None,
                 })
             logger.info("add_events: storing %d task requests to session", len(task_requests))
             request.session[SESSION_TASK_REQUESTS] = task_requests
