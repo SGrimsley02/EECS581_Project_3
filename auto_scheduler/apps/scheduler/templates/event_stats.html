@@ -1,0 +1,81 @@
+<!--
+    Name: apps/scheduler/templates/event_stats.html
+    Description: Web page for displaying basic event analytics,
+                 including time spent per event type and bar charts
+    Authors: Audrey Pan
+    Created: November 22, 2025
+    Last Modified: November 22, 2025
+-->
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Event Stats - Auto Scheduler{% endblock %}
+
+{% block content %}
+  <h2>Event Statistics</h2>
+
+  <form method="get" class="stats-filters" style="margin-bottom: 1.5rem;">
+    <label>
+      Start date:
+      <input type="date" name="start" value="{{ start_date }}">
+    </label>
+    <label style="margin-left: 1rem;">
+      End date:
+      <input type="date" name="end" value="{{ end_date }}">
+    </label>
+    <button type="submit" style="margin-left: 1rem;">Update</button>
+  </form>
+
+  {% if not has_data %}
+    <p>No scheduled events yet. Import a calendar and add events to see stats.</p>
+  {% else %}
+    <h3 class = "stats-section-title">Time Spent by Event Type</h3>
+
+    <!-- Simple table -->
+    <div class = "stats-table-wrapper">
+    <table class = "stats-table">
+      <thead>
+        <tr>
+          <th>Event Type</th>
+          <th>Total Time (minutes)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in type_stats %}
+          <tr>
+            <td>{{ row.event_type }}</td>
+            <td>{{ row.minutes }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+    <!-- Bar chart -->
+    <h3>Visual Summary</h3>
+    <canvas id="typeChart" width="400" height="200"></canvas>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      const labels = {{ labels_json|safe }};
+      const minutes = {{ minutes_json|safe }};
+
+      const ctx = document.getElementById('typeChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Time spent (minutes)',
+            data: minutes,
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    </script>
+  {% endif %}
+{% endblock %}
