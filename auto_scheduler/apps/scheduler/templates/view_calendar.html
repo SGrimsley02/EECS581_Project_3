@@ -76,7 +76,7 @@
   <!-- TASK REQUESTS (these are the “generated schedule” inputs) -->
   <h3>Task Requests (to be scheduled)</h3>
   <ul>
-    {% for t in task_requests %}
+    {% for t in event_requests %}
       <li style="margin-bottom: 0.75rem;">
         <strong>{% firstof t.title t.name "(No Title)" %}</strong>
         <span>

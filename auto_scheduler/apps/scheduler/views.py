@@ -29,7 +29,7 @@ from apps.scheduler.utils.scheduler import preview_schedule_order
 import copy
 
 SESSION_IMPORTED_EVENTS = "imported_events" # parsed from ICS
-SESSION_TASK_REQUESTS   = "task_requests" # user-entered tasks (requests)
+SESSION_EVENT_REQUESTS   = "event_requests" # user-entered tasks (requests)
 
 SESSION_UNDO_STACK = "schedule_undo_stack"
 SESSION_REDO_STACK = "schedule_redo_stack"
@@ -161,7 +161,7 @@ def view_calendar(request):
                 idx = -1
 
             imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-            event_requests   = request.session.get(SESSION_TASK_REQUESTS, [])
+            event_requests   = request.session.get(SESSION_EVENT_REQUESTS, [])
 
             if delete_type == "imported" and 0 <= idx < len(imported_events):
                 logger.info("view_calendar: deleting imported event at index %d", idx)
@@ -170,9 +170,11 @@ def view_calendar(request):
             elif delete_type == "task" and 0 <= idx < len(event_requests):
                 logger.info("view_calendar: deleting task request at index %d", idx)
                 event_requests.pop(idx)
-                request.session[SESSION_TASK_REQUESTS] = event_requests
+                request.session[SESSION_EVENT_REQUESTS] = event_requests
 
             request.session.modified = True
+            request.session[SESSION_SCHEDULE_UPDATE] = True
+            request.session.pop(SESSION_SCHEDULED_EVENTS, None)
             return redirect("scheduler:view_calendar")
 
         # Undo
@@ -209,12 +211,12 @@ def view_calendar(request):
 
         # Export ICS
         elif action == "export":
-            # Use scheduler to find placement of task_requests
+            # Use scheduler to find placement of event_requests
             imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-            task_requests   = request.session.get(SESSION_TASK_REQUESTS, [])
+            event_requests   = request.session.get(SESSION_EVENT_REQUESTS, [])
             logger.info("view_calendar: POST(export); scheduling %d tasks against %d imported events",
-                        len(task_requests), len(imported_events))
-            scheduled_events = schedule_tasks(task_requests, imported_events)
+                        len(event_requests), len(imported_events))
+            scheduled_events = schedule_events(event_requests, imported_events)
             events = imported_events + scheduled_events
             ics_stream = export_ics(events)
             resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
@@ -223,10 +225,10 @@ def view_calendar(request):
         
     # GET: recompute latest lists & preview
     imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-    task_requests   = request.session.get(SESSION_TASK_REQUESTS, [])
-    events = imported_events + task_requests
+    event_requests   = request.session.get(SESSION_EVENT_REQUESTS, [])
+    events = imported_events + event_requests
     
-    preview = preview_schedule_order(task_requests)
+    preview = preview_schedule_order(event_requests)
     for i, t in enumerate(preview, start=1):
         t["schedule_order"] = i
     
@@ -253,7 +255,9 @@ def view_calendar(request):
         'events': events,
         'preview_tasks': preview,
         'imported_events': imported_events,
-        'task_requests': task_requests
+        'event_requests': event_requests,
+        'undo_available': undo_available,
+        'redo_available': redo_available
     }
     logger.info("view_calendar: GET; rendering page with %d events", len(scheduled_events))
     return render(request, 'view_calendar.html', ctx)
@@ -353,15 +357,17 @@ def _get_current_state(request):
         "imported_events": copy.deepcopy(
             request.session.get(SESSION_IMPORTED_EVENTS, [])
         ),
-        "task_requests": copy.deepcopy(
-            request.session.get(SESSION_TASK_REQUESTS, [])
+        "event_requests": copy.deepcopy(
+            request.session.get(SESSION_EVENT_REQUESTS, [])
         ),
     }
 
 
 def _apply_state(request, state):
     request.session[SESSION_IMPORTED_EVENTS] = state.get("imported_events", [])
-    request.session[SESSION_TASK_REQUESTS] = state.get("task_requests", [])
+    request.session[SESSION_EVENT_REQUESTS] = state.get("event_requests", [])
+    request.session[SESSION_SCHEDULE_UPDATE] = True
+    request.session.pop(SESSION_SCHEDULED_EVENTS, None)
     request.session.modified = True
 
 
