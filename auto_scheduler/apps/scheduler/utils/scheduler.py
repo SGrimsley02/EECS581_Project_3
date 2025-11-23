@@ -1,5 +1,5 @@
 '''
-Name: apps/scheduler/scheduler.py
+Name: apps/scheduler/utils/scheduler.py
 Description: Module for scheduling tasks
 Authors: Hart Nurnberg, Audrey Pan, Kiara Grimsley, Ella Nguyen
 Created: November 7, 2025
