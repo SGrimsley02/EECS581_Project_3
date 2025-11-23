@@ -42,63 +42,6 @@ gap: 10px;
     padding-left: 10px;
 }
 .stats-table-wrapper {
-    margin-top: 1rem;
-}
-
-.stats-table {
-    border-collapse: collapse;
-    font-size: 1rem;
-    width: 60%;
-    margin: 0 auto;
-}
-
-.stats-table th,
-.stats-table td {
-    padding: 6px 14px;
-    text-align: left;
-}
-
-.stats-table th {
-    font-weight: 700;
-}
-
-.stats-section-title {
-    text-align: center;
-    margin-top: 2rem;
-}
-
-.stats-table-wrapper {
-    margin: 1rem auto;
-    width: 60%;
-    display: flex;
-    justify-content: center;
-}
-
-.stats-table {
-    border-collapse: collapse;
-    width: 100%;
-    background: #fff;
-    font-size: 1rem;
-    border: 1px solid #ccc;
-}
-
-.stats-table th,
-.stats-table td {
-    padding: 8px 14px;
-    text-align: left;
-    border: 1px solid #ccc;
-}
-
-.stats-table th {
-    background: #f2f2f2;
-    font-weight: bold;
-}
-.stats-section-title {
-    text-align: center;
-    margin-top: 2rem;
-}
-
-.stats-table-wrapper {
     margin: 1rem auto;
     width: 60%;
     display: flex;
