@@ -13,13 +13,13 @@
 <h2 class="mb-2">Add Events</h2>
 <p class="text-sm text-muted">Imported events loaded: {{ imported_count|default:0 }}</p>
 
-<form method="post" id="task-formset">
+<form method="post" id="event-formset">
   {% csrf_token %}
   {{ formset.management_form }}
 
   <div id="forms-container">
     {% for form in formset %}
-      <div class="task-card" data-form-index="{{ forloop.counter0 }}" style="border:1px solid #ddd;padding:12px;margin-bottom:10px;border-radius:8px;">
+      <div class="event-card" data-form-index="{{ forloop.counter0 }}" style="border:1px solid #ddd;padding:12px;margin-bottom:10px;border-radius:8px;">
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
           <div>
             <label>Title</label>
@@ -85,14 +85,14 @@
         </details>
 
         <div style="margin-top:8px; display:flex; gap:8px;">
-            <button type="button" class="btn-remove-card" title="Remove this task">Remove</button>
+            <button type="button" class="btn-remove-card" title="Remove this event">Remove</button>
         </div>
       </div>
     {% endfor %}
   </div>
 
   <div style="display:flex;gap:12px;align-items:center;">
-    <button type="button" id="add-task-btn">+ Add Task</button>
+    <button type="button" id="add-event-btn">+ Add Event</button>
     <button type="submit">Save & Continue</button>
   </div>
 </form>
@@ -100,14 +100,14 @@
 <script>
 (function() {
   // Elements
-  const formsetEl       = document.getElementById('task-formset');
-  const addBtn          = document.getElementById('add-task-btn');
+  const formsetEl       = document.getElementById('event-formset');
+  const addBtn          = document.getElementById('add-event-btn');
   const container       = document.getElementById('forms-container');
-  const totalFormsInput = document.getElementById('id_tasks-TOTAL_FORMS');
+  const totalFormsInput = document.getElementById('id_events-TOTAL_FORMS');
 
   // Utilities
   function formCards() {
-    return Array.from(container.querySelectorAll('.task-card'));
+    return Array.from(container.querySelectorAll('.event-card'));
   }
   function countForms() {
     return formCards().length;
@@ -119,15 +119,15 @@
     });
   }
   function reindexForms() {
-    // Make indices contiguous: tasks-0-*, tasks-1-*, etc.
+    // Make indices contiguous: events-0-*, events-1-*, etc.
     formCards().forEach((card, idx) => {
       card.setAttribute('data-form-index', idx);
       card.querySelectorAll('input, select, textarea, label').forEach(el => {
         if (el.tagName === 'LABEL' && el.getAttribute('for')) {
-          el.setAttribute('for', el.getAttribute('for').replace(/id_tasks-\d+-/, `id_tasks-${idx}-`));
+          el.setAttribute('for', el.getAttribute('for').replace(/id_events-\d+-/, `id_events-${idx}-`));
         }
-        if (el.id)   el.id   = el.id.replace(/id_tasks-\d+-/, `id_tasks-${idx}-`);
-        if (el.name) el.name = el.name.replace(/tasks-\d+-/, `tasks-${idx}-`);
+        if (el.id)   el.id   = el.id.replace(/id_events-\d+-/, `id_events-${idx}-`);
+        if (el.name) el.name = el.name.replace(/events-\d+-/, `events-${idx}-`);
       });
     });
     totalFormsInput.value = String(countForms());
@@ -144,7 +144,7 @@
 
   // Add new form (clone last)
   function addNewForm() {
-    const last = container.querySelector('.task-card:last-of-type');
+    const last = container.querySelector('.event-card:last-of-type');
     if (!last) {
       alert('No existing form to clone. Please reload the page.');
       return;
@@ -167,7 +167,7 @@
     const btn = e.target.closest('.btn-remove-card');
     if (!btn) return;
     if (countForms() <= 1) return; // keep at least 1
-    const card = btn.closest('.task-card');
+    const card = btn.closest('.event-card');
     if (card) {
       card.remove();
       reindexForms();

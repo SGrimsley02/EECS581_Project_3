@@ -2,43 +2,21 @@
 <!--
     Name: apps/scheduler/templates/base.html
     Description: HTML template for the standard base layout.
-                All other templates extend this one. 
+                All other templates extend this one.
                 Includes global navigation, message rendering, and
                 light styling for layout and alerts.
     Authors: Kiara Grimsley, Audrey Pan
     Created: November 7, 2025
-    Last Modified: November 9, 2025
+    Last Modified: November 22, 2025
 -->
-
+{% load static %}
 <!-- Metadata -->
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <title>{% block title %}Auto Scheduler{% endblock %}</title>
-    <!-- CSS if needed -->
-     <style>
-        .messages {
-            margin: 1rem 0;
-        }
-
-        .message {
-            padding: 10px 15px;
-            border-radius: 6px;
-            margin-bottom: 10px;
-        }
-        .message.prefs-bold-red {
-            color: #b91c1c; /* Red-700 */
-            background: #fee2e2; /* Red-100 */
-            border: 1px solid #fecaca; /* Red-200 */
-            font-weight: 700; /* Bold */
-        }
-        .rank-row {
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        }
-    </style>
+    <!-- CSS -->
+    <link rel="stylesheet" href="{% static 'scheduler/css/base.css' %}">
 </head>
 
 <body>
@@ -48,7 +26,8 @@
             <a href="{% url 'scheduler:preferences' %}">Preferences</a> |
             <a href="{% url 'scheduler:upload_ics' %}">Upload</a> |
             <a href="{% url 'scheduler:add_events' %}">Add Events</a> |
-            <a href="{% url 'scheduler:view_calendar' %}">Export</a> 
+            <a href="{% url 'scheduler:view_calendar' %}">Export</a> |
+            <a href="{% url 'scheduler:logout' %}">Log Out</a>
         </nav>
     </header>
 
@@ -56,10 +35,30 @@
         {% if messages %}
             <div class="messages">
                 {% for message in messages %}
-                    <div class="message {% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</div>
+                    <div class="message {% if message.tags %}{{ message.tags }}{% endif %}">
+                        {{ message }}
+
+                        {# If this is the study-preferences recap reminder, show action buttons #}
+                        {% if "prefs-recap" in message.tags %}
+                            <div class="recap-actions" style="margin-top: 8px;">
+                                <a href="{% url 'scheduler:preferences' %}"
+                                class="btn-update"
+                                style="margin-right: 10px; text-decoration: underline;">
+                                Update Now
+                                </a>
+
+                                <a href="{% url 'scheduler:dismiss_preferences_recap' %}?next={{ request.path }}"
+                                class="btn-dismiss"
+                                style="text-decoration: underline; color: #555;">
+                                Dismiss
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
                 {% endfor %}
             </div>
         {% endif %}
+
 
         {% block content %}
         <!-- Page-specific content goes here -->

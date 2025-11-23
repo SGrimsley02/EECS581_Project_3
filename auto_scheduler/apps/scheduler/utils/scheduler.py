@@ -1,7 +1,7 @@
 '''
 Name: apps/scheduler/scheduler.py
 Description: Module for scheduling tasks
-Authors: Hart Nurnberg, Audrey Pan, Kiara Grimsley
+Authors: Hart Nurnberg, Audrey Pan, Kiara Grimsley, Ella Nguyen
 Created: November 7, 2025
 Last Modified: November 22, 2025
 '''
@@ -9,14 +9,34 @@ Last Modified: November 22, 2025
 from datetime import datetime, date, time, timedelta
 from typing import List, Tuple, Dict, Optional
 import copy
+import pytz
 from pytz import UTC
 import logging
 
 logger = logging.getLogger("apps.scheduler")
 
+UTC = pytz.UTC
+
+PRIORITY_ORDER = {
+    "high": 0,
+    "medium": 1,
+    "low": 2
+}
+
+def preview_schedule_order(task_requests_raw):
+    # If you already have expand_task_request, keep using it; else pass through
+    tasks = [expand_event_request(t) for t in task_requests_raw]
+    return sorted(tasks, key=schedule_sort_key)
+
+# Used in views.py for the Export page to preview the order of events
+def schedule_sort_key(t):
+    pr = PRIORITY_ORDER.get(t.get("priority", "medium"), 1)
+    dur = int(t.get("duration_minutes", 0) or 0)
+    return (pr, -dur)
+
 # Data structures used internally are as follows:
 # BusySlot = (start_datetime, end_datetime)
-# TaskRequest = {
+# EventRequest = {
 #   "title","description","duration_minutes","priority","event_type",
 #   "date_start","date_end","time_start","time_end","split","split_minutes",
 #   "recurring", "recurring_until"
@@ -109,12 +129,12 @@ def get_busy_from_imported(imported_events: List[dict]) -> List[Tuple[datetime, 
             logger.warning("get_busy_from_imported: skipped event name=%r start=%r end=%r", ev.get("name"), ev.get("start"), ev.get("end"))
     return merge_busy_slots(busy)
 
-def expand_task_request(raw_task: dict):
+def expand_event_request(raw_event: dict):
     """
-    Convert ISO strings in task_requests to python types (datetime or None).
+    Convert ISO strings in event_requests to python types (datetime or None).
     """
-    logger.debug("expand_task_request: in=%r", raw_task)
-    t = copy.copy(raw_task)
+    logger.debug("expand_event_request: in=%r", raw_event)
+    t = copy.copy(raw_event)
     # date_start/date_end are YYYY-MM-DD or None
     if t.get("date_start"):
         t["date_start"] = date.fromisoformat(t["date_start"])
@@ -134,15 +154,15 @@ def expand_task_request(raw_task: dict):
     logger.debug("expand_task_request: out=%r", t)
     return t
 
-def generate_candidate_windows_for_task(task: dict, window_start: datetime, window_end: datetime) -> List[Tuple[datetime, datetime]]:
+def generate_candidate_windows_for_event(event: dict, window_start: datetime, window_end: datetime) -> List[Tuple[datetime, datetime]]:
     """
     Build candidate day/time windows (tz-aware UTC).
     """
-    logger.debug("generate_candidate_windows_for_task: title=%r window=[%s, %s)", task.get("title"), window_start, window_end)
-    ds = task.get("date_start")
-    de = task.get("date_end")
-    ts = task.get("time_start")
-    te = task.get("time_end")
+    logger.debug("generate_candidate_windows_for_event: title=%r window=[%s, %s)", event.get("title"), window_start, window_end)
+    ds = event.get("date_start")
+    de = event.get("date_end")
+    ts = event.get("time_start")
+    te = event.get("time_end")
 
     results = []
 
@@ -160,7 +180,7 @@ def generate_candidate_windows_for_task(task: dict, window_start: datetime, wind
         if slot_s < slot_e:
             results.append((slot_s, slot_e))
         d = d + one_day
-    logger.debug("generate_candidate_windows_for_task: candidates=%d", len(results))
+    logger.debug("generate_candidate_windows_for_event: candidates=%d", len(results))
     return results
 
 def split_into_chunks(duration_minutes: int, split: bool, split_minutes: Optional[int]) -> List[int]:
@@ -214,7 +234,7 @@ def schedule_single_task(
     # Generate candidate windows based on task's date/time constraints
     candidates: List[Tuple[datetime, datetime]] = []
     for free_s, free_e in free_slots:
-        for cand in generate_candidate_windows_for_task(task, free_s, free_e):
+        for cand in generate_candidate_windows_for_event(task, free_s, free_e):
             candidates.append(cand)
 
     candidates.sort(key=lambda x: x[0])
@@ -257,13 +277,13 @@ def schedule_tasks(
     """
     Main scheduling routine.
     Inputs:
-      - task_requests_raw: session task dicts (ISO strings) -> will be expanded
+      - event_requests_raw: session event dicts (ISO strings) -> will be expanded
       - imported_events: output of import_ics (used to build busy slots)
       - window_start/window_end: overall scheduling timeframe (default: now .. +14 days)
     Returns:
       - list of ScheduledEvent dicts: {"title","description","start","end","event_type","priority"}
     """
-    logger.info("schedule_tasks: tasks_in=%d imported_in=%d window_start=%r window_end=%r",
+    logger.info("schedule_events: events_in=%d imported_in=%d window_start=%r window_end=%r",
                 len(task_requests_raw), len(imported_events), window_start, window_end)
 
     # Ensure UTC-aware global window
@@ -280,24 +300,28 @@ def schedule_tasks(
     current_busy = merge_busy_slots(busy[:])
 
     priority_order = {"high": 0, "medium": 1, "low": 2}
-    tasks = [expand_task_request(t) for t in task_requests_raw]
-    tasks_sorted = sorted(
-        tasks,
-        key=lambda x: (priority_order.get(x.get("priority","medium"), 1), -int(x.get("duration_minutes",0))))
-
+    events = [expand_event_request(t) for t in task_requests_raw]
+    events_sorted = sorted(
+        events,
+        key=lambda t: (
+        PRIORITY_ORDER.get(t.get("priority", "medium"), 1),
+        -int(t.get("duration_minutes", 0))
+        )
+    )
+    
     scheduled_events = []
-    logger.info("schedule_tasks: window=[%s, %s) initial_busy=%d tasks_sorted=%d",
-                window_start, window_end, len(current_busy), len(tasks_sorted))
+    logger.info("schedule_events: window=[%s, %s) initial_busy=%d events_sorted=%d",
+                window_start, window_end, len(current_busy), len(events_sorted))
 
-    for task in tasks_sorted:
-        logger.info("schedule_tasks: placing task title=%r duration=%s priority=%s split=%s split_minutes=%r",
-                    task.get("title"), task.get("duration_minutes"), task.get("priority"),
-                    task.get("split"), task.get("split_minutes"))
-        chunks = split_into_chunks(task["duration_minutes"], task.get("split", False), task.get("split_minutes"))
+    for event in events_sorted:
+        logger.info("schedule_events: placing event title=%r duration=%s priority=%s split=%s split_minutes=%r",
+                    event.get("title"), event.get("duration_minutes"), event.get("priority"),
+                    event.get("split"), event.get("split_minutes"))
+        chunks = split_into_chunks(event["duration_minutes"], event.get("split", False), event.get("split_minutes"))
         for chunk_minutes in chunks:
             # First, schedule this chunk anywhere in the global window
             start_dt, end_dt = schedule_single_task(
-                task=task,
+                task=event,
                 chunk_minutes=chunk_minutes,
                 current_busy=current_busy,
                 scheduled_events=scheduled_events,
@@ -309,23 +333,23 @@ def schedule_tasks(
                 # Could not schedule this chunk at all
                 logger.warning(
                     "schedule_tasks: UNSCHEDULED title=%r minutes=%d (no fit)",
-                    task.get("title"), chunk_minutes
+                    event.get("title"), chunk_minutes
                 )
                 scheduled_events.append({
-                    "name": task.get("title"),
-                    "description": task.get("description"),
+                    "name": event.get("title"),
+                    "description": event.get("description"),
                     "start": None,
                     "end": None,
-                    "event_type": task.get("event_type"),
-                    "priority": task.get("priority"),
+                    "event_type": event.get("event_type"),
+                    "priority": event.get("priority"),
                     "unscheduled": True,
                     "requested_minutes": chunk_minutes
                 })
                 continue  # Move on to next chunk
 
             # Recurring weekly logic (try same time, then same day, then same week)
-            if task.get("recurring") and task.get("recurring_until"):
-                recurrence_end_date = task["recurring_until"]
+            if event.get("recurring") and event.get("recurring_until"):
+                recurrence_end_date = event["recurring_until"]
 
                 original_time = start_dt.time()
                 occurrence_date = start_dt.date() + timedelta(weeks=1)
@@ -343,12 +367,12 @@ def schedule_tasks(
 
                     if not conflict:
                         new_ev = {
-                            "name": task.get("title"),
-                            "description": task.get("description"),
+                            "name": event.get("title"),
+                            "description": event.get("description"),
                             "start": exact_start.isoformat(),
                             "end": exact_end.isoformat(),
-                            "event_type": task.get("event_type"),
-                            "priority": task.get("priority"),
+                            "event_type": event.get("event_type"),
+                            "priority": event.get("priority"),
                         }
                         scheduled_events.append(new_ev)
                         current_busy.append((exact_start, exact_end))
@@ -362,7 +386,7 @@ def schedule_tasks(
                     day_start = to_datetime(occurrence_date, time.min)
                     day_end   = to_datetime(occurrence_date, time.max)
 
-                    task_for_day = task.copy()
+                    task_for_day = event.copy()
                     task_for_day["date_start"] = occurrence_date
                     task_for_day["date_end"]   = occurrence_date
 
@@ -383,7 +407,7 @@ def schedule_tasks(
                         week_start_dt = day_start
                         week_end_dt   = to_datetime(week_end_date, time.max)
 
-                        task_for_week = task.copy()
+                        task_for_week = event.copy()
                         task_for_week["date_start"] = occurrence_date
                         task_for_week["date_end"]   = week_end_date
 
@@ -402,7 +426,7 @@ def schedule_tasks(
                             logger.warning(
                                 "schedule_tasks: recurring occurrence UNSCHEDULED "
                                 "for title=%r in week starting %s",
-                                task.get("title"), occurrence_date
+                                event.get("title"), occurrence_date
                             )
 
                     occurrence_date += timedelta(weeks=1)
