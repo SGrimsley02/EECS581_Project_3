@@ -164,11 +164,14 @@ def view_calendar(request):
         logger.info("view_calendar: reschedule needed; scheduling now")
         imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
         event_requests = request.session.get(SESSION_EVENT_REQUESTS, [])
+        
+        # Get preferences for scheduling
+        preferences = request.session.get(SESSION_PREFERENCES, {})
 
         # Schedule any events
         logger.info("view_calendar: scheduling %d events against %d imported events",
                     len(event_requests), len(imported_events))
-        scheduled_events = imported_events + schedule_events(event_requests, imported_events)
+        scheduled_events = imported_events + schedule_events(event_requests, imported_events, preferences=preferences)
         request.session[SESSION_SCHEDULED_EVENTS] = scheduled_events
         request.session[SESSION_SCHEDULE_UPDATE] = False # Reset update flag
         request.session.modified = True # Ensure session is saved
@@ -245,9 +248,10 @@ def view_calendar(request):
             # Use scheduler to find placement of event_requests
             imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
             event_requests   = request.session.get(SESSION_EVENT_REQUESTS, [])
+            preferences = request.session.get(SESSION_PREFERENCES, {})
             logger.info("view_calendar: POST(export); scheduling %d tasks against %d imported events",
                         len(event_requests), len(imported_events))
-            scheduled_events = schedule_events(event_requests, imported_events)
+            scheduled_events = schedule_events(event_requests, imported_events, preferences=preferences)
             events = imported_events + scheduled_events
             ics_stream = export_ics(events)
             resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
