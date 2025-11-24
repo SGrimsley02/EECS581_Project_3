@@ -59,11 +59,6 @@
     {{ form.blackout_days }}
   </fieldset>
 
-  <fieldset>
-    <legend>Strategy</legend>
-    {{ form.lookahead.label_tag }} {{ form.lookahead }}
-  </fieldset>
-
   {% if form.non_field_errors %}
     <div class="message">{{ form.non_field_errors }}</div>
   {% endif %}

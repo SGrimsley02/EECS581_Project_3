@@ -199,11 +199,14 @@ def view_calendar(request):
                 imported_events.append(ev)
 
         event_requests = request.session.get(SESSION_EVENT_REQUESTS, [])
+        
+        # Get preferences for scheduling
+        preferences = request.session.get(SESSION_PREFERENCES, {})
 
         # Schedule any events
         logger.info("view_calendar: scheduling %d events against %d imported events",
                     len(event_requests), len(imported_events))
-        scheduled_events = imported_events + schedule_events(event_requests, imported_events)
+        scheduled_events = imported_events + schedule_events(event_requests, imported_events, preferences=preferences)
         request.session[SESSION_SCHEDULED_EVENTS] = scheduled_events
         request.session[SESSION_SCHEDULE_UPDATE] = False # Reset update flag
         request.session.modified = True # Ensure session is saved

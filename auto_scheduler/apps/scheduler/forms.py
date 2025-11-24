@@ -210,15 +210,6 @@ class StudyPreferencesForm(forms.Form):
         widget=forms.CheckboxSelectMultiple
     )
 
-    # How far in advance the student likes to begin exam prep
-    LOOKAHEAD_CHOICES = [
-        ("1_3", "1-3 days"),
-        ("4_6", "4-6 days"),
-        ("1w",  "1 week"),
-        ("2w+", "2 weeks +"),
-    ]
-    lookahead = forms.ChoiceField(label="How far in advance to study for exams?", choices=LOOKAHEAD_CHOICES)
-
     def clean(self):
         '''Ensure all ranks 1-6 are unique'''
         cleaned = super().clean()
