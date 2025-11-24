@@ -1,9 +1,9 @@
 '''
 Name: apps/scheduler/forms.py
 Description: Forms for file uploading in the scheduler app and study preferences questionnaire.
-Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan
+Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan, Hart Nurnberg
 Created: November 7, 2025
-Last Modified: November 11, 2025
+Last Modified: November 22, 2025
 '''
 
 from django import forms
@@ -109,6 +109,19 @@ class EventForm(forms.Form):
         ),
     )
 
+    # Allow for weekly recurring events
+    recurring = forms.BooleanField(
+        required=False,
+        label="Repeat every week?",
+    )
+
+    recurring_until = forms.DateField(
+        required=False,
+        label="Repeat until",
+        widget=forms.DateInput(attrs={"type": "date"}),
+        help_text="Required if repeating weekly.",
+    )
+
     def clean(self):
         '''
         Ensures date/time ranges are logical + Split block logic
@@ -143,6 +156,10 @@ class EventForm(forms.Form):
                 "split_minutes",
                 "Provide a split block size when splitting is enabled."
             )
+
+        # Enforce requiring recurring_until with recurring event
+        if cleaned.get("recurring") and not cleaned.get("recurring_until"):
+            self.add_error("recurring_until", "Repeat until is required if repeating weekly.")
 
         return cleaned
 

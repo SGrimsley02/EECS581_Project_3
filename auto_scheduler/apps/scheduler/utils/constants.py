@@ -5,9 +5,9 @@ Description: Constants used in the scheduler app.
                 Event types
                 Priority choices
                 Debug logger
-Authors: Kiara Grimsley, Lauren D'Souza
+Authors: Kiara Grimsley, Lauren D'Souza, Hart Nurnberg
 Created: November 9, 2025
-Last Modified: November 16, 2025
+Last Modified: November 23, 2025
 '''
 
 
@@ -41,3 +41,9 @@ SESSION_PREF_RECAP_DISMISSED = "preferences_recap_dismissed"
 
 
 LOGGER_NAME = "apps.scheduler"
+
+PRIORITY_ORDER = {
+    "high": 0,
+    "medium": 1,
+    "low": 2
+}

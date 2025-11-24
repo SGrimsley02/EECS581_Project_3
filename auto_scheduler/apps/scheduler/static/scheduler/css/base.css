@@ -41,3 +41,29 @@ gap: 10px;
     border-left: 4px solid #003366;
     padding-left: 10px;
 }
+.stats-table-wrapper {
+    margin: 1rem auto;
+    width: 60%;
+    display: flex;
+    justify-content: center;
+}
+
+.stats-table {
+    border-collapse: collapse;
+    width: 100%;
+    background: #fff;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+}
+
+.stats-table th,
+.stats-table td {
+    padding: 8px 14px;
+    text-align: left;
+    border: 1px solid #ccc;
+}
+
+.stats-table th {
+    background: #f2f2f2;
+    font-weight: 700;
+}
