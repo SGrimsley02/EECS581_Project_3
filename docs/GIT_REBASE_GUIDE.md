@@ -4,6 +4,8 @@
 
 When working on a feature branch, the main branch may receive new changes from merged pull requests. To keep your branch up-to-date and avoid merge conflicts later, you can rebase your branch on top of the latest main branch.
 
+**🎯 For a practical example of rebasing in this repository, see [REBASE_EXAMPLE.md](REBASE_EXAMPLE.md)**
+
 ## What is Rebasing?
 
 Rebasing takes your branch's commits and replays them on top of another branch (usually main). This creates a linear history and makes your pull request easier to review and merge.
