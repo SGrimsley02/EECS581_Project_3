@@ -505,7 +505,7 @@ def schedule_events(
         chunks = split_into_chunks(event["duration_minutes"], event.get("split", False), event.get("split_minutes"))
         for chunk_minutes in chunks:
             placed = False
-            free_slots = compute_free()
+            free_slots = invert_slots(merge_busy_slots(current_busy), window_start, window_end)
             logger.debug("schedule_events: chunk=%d free_slots=%d", chunk_minutes, len(free_slots))
             candidates = []
             for free_s, free_e in free_slots:
