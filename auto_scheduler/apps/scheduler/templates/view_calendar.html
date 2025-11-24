@@ -57,6 +57,37 @@
         <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
       {% endif %}
 
+      <!-- EDIT IMPORTED EVENT -->
+      <button type="button" onclick="toggleEdit('imported-{{ forloop.counter0 }}')">Edit</button>
+      <div id="imported-{{ forloop.counter0 }}" style="display:none; margin-top:0.5rem;">
+        <form method="post" action="{% url 'scheduler:view_calendar' %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="edit">
+          <input type="hidden" name="edit_type" value="imported">
+          <input type="hidden" name="edit_index" value="{{ forloop.counter0 }}">
+
+          <div>
+            <label>Title: <input type="text" name="new_title" value="{% firstof event.name event.title %}"></label>
+          </div>
+          <div>
+            <label>Description: <input type="text" name="new_description" value="{{ event.description }}"></label>
+          </div>
+          <div>
+            <label>Type:
+              <select name="new_event_type">
+                {% for etype in event_type_choices %}
+                  <option value="{{ etype }}" {% if event.event_type == etype %}selected{% endif %}>{{ etype }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+          <div style="margin-top:0.25rem;">
+            <button type="submit">Save</button>
+            <button type="button" onclick="toggleEdit('imported-{{ forloop.counter0 }}')">Cancel</button>
+          </div>
+        </form>
+      </div>
+
       <!-- DELETE IMPORTED EVENT -->
         <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline">
           {% csrf_token %}
@@ -87,6 +118,37 @@
           <br><small><strong>Description:</strong> {{ t.description }}</small>
         {% endif %}
 
+        <!-- EDIT TASK REQUEST -->
+        <button type="button" onclick="toggleEdit('task-{{ forloop.counter0 }}')">Edit</button>
+        <div id="task-{{ forloop.counter0 }}" style="display:none; margin-top:0.5rem;">
+          <form method="post" action="{% url 'scheduler:view_calendar' %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="edit">
+            <input type="hidden" name="edit_type" value="task">
+            <input type="hidden" name="edit_index" value="{{ forloop.counter0 }}">
+
+            <div>
+              <label>Title: <input type="text" name="new_title" value="{{ t.title }}"></label>
+            </div>
+            <div>
+              <label>Description: <input type="text" name="new_description" value="{{ t.description }}"></label>
+            </div>
+            <div>
+              <label>Type:
+                <select name="new_event_type">
+                  {% for etype in event_type_choices %}
+                    <option value="{{ etype }}" {% if t.event_type == etype %}selected{% endif %}>{{ etype }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+            </div>
+            <div style="margin-top:0.25rem;">
+              <button type="submit">Save</button>
+              <button type="button" onclick="toggleEdit('task-{{ forloop.counter0 }}')">Cancel</button>
+            </div>
+          </form>
+        </div>
+
         <!-- DELETE TASK REQUEST -->
         <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline">
           {% csrf_token %}
@@ -100,6 +162,14 @@
       <li>No task requests yet. Add some on the "Add Events" page.</li>
     {% endfor %}
   </ul>
+
+  <script>
+    function toggleEdit(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = (el.style.display === 'none' || el.style.display === '') ? 'block' : 'none';
+    }
+  </script>
 
   <hr>
 

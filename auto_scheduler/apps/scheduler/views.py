@@ -26,6 +26,7 @@ from .utils.stats import compute_time_by_event_type
 
 import pytz
 from .utils.constants import * # SESSION_*, LOGGER_NAME
+from .utils.constants import EventType
 from datetime import date, timedelta, datetime
 from apps.scheduler.utils.scheduler import preview_schedule_order
 import copy
@@ -188,6 +189,73 @@ def view_calendar(request):
     if request.method == 'POST':
         action = request.POST.get("action", "export")
 
+        # Edit event
+        if action == "edit":
+            # snapshot for undo
+            _push_undo(request)
+
+            edit_type = request.POST.get("edit_type")
+            edit_index = request.POST.get("edit_index")
+            try:
+                idx = int(edit_index)
+            except (TypeError, ValueError):
+                idx = -1
+
+            # fields submitted from the form
+            new_title = request.POST.get("new_title", "").strip()
+            new_description = request.POST.get("new_description", "").strip()
+            new_event_type = request.POST.get("new_event_type", "").strip()
+
+            # Allowed event types (must match the UI dropdown)
+            allowed_event_types = EventType.values
+
+            imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
+            event_requests = request.session.get(SESSION_EVENT_REQUESTS, [])
+
+            if edit_type == "imported" and 0 <= idx < len(imported_events):
+                logger.info("view_calendar: editing imported event at index %d", idx)
+                ev = imported_events[idx]
+                if new_title:
+                    # update common keys used elsewhere
+                    ev["name"] = new_title
+                    ev["title"] = new_title
+                # allow clearing description if empty string provided
+                if new_description:
+                    ev["description"] = new_description
+                else:
+                    ev.pop("description", None)
+                if new_event_type:
+                    ev["event_type"] = new_event_type
+                else:
+                    ev.pop("event_type", None)
+
+                imported_events[idx] = ev
+                request.session[SESSION_IMPORTED_EVENTS] = imported_events
+
+            elif edit_type == "task" and 0 <= idx < len(event_requests):
+                logger.info("view_calendar: editing task request at index %d", idx)
+                t = event_requests[idx]
+                if new_title:
+                    t["title"] = new_title
+                if new_description:
+                    t["description"] = new_description
+                else:
+                    t.pop("description", None)
+                if new_event_type:
+                    t["event_type"] = new_event_type
+                else:
+                    t.pop("event_type", None)
+
+                event_requests[idx] = t
+                request.session[SESSION_EVENT_REQUESTS] = event_requests
+
+            # mark schedule stale and persist session
+            request.session[SESSION_SCHEDULE_UPDATE] = True
+            request.session.pop(SESSION_SCHEDULED_EVENTS, None)
+            request.session.modified = True
+
+            return redirect("scheduler:view_calendar")
+
         # Delete Event
         if action == "delete":
             _push_undo(request)  # snapshot before the change
@@ -298,7 +366,8 @@ def view_calendar(request):
         'imported_events': imported_events,
         'event_requests': event_requests,
         'undo_available': undo_available,
-        'redo_available': redo_available
+        'redo_available': redo_available,
+        'event_type_choices': EventType.values,
     }
     logger.info("view_calendar: GET; rendering page with %d events", len(scheduled_events))
     return render(request, 'view_calendar.html', ctx)
