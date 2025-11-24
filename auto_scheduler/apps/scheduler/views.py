@@ -22,11 +22,14 @@ from .forms import ICSUploadForm, EventForm, StudyPreferencesForm
 
 from .utils.icsImportExport import import_ics, export_ics
 from .utils.scheduler import schedule_events
+from .utils.stats import compute_time_by_event_type
+
 import pytz
 from .utils.constants import * # SESSION_*, LOGGER_NAME
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from apps.scheduler.utils.scheduler import preview_schedule_order
 import copy
+import json
 
 from django.contrib import messages
 
@@ -377,6 +380,77 @@ def dismiss_preferences_recap(request):
     next_url = request.GET.get("next") or "scheduler:upload_ics"
     return redirect(next_url)
 
+@login_required
+def event_stats(request):
+    """
+    Display basic statistics for the user's scheduled events.
+    Initial focus: total time spent per event_type, with a chart.
+    """
+    check_preferences_recap(request)
+
+    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
+
+    # If no events at all, show empty state but still include filter fields
+    start_str = request.GET.get("start", "")
+    end_str = request.GET.get("end", "")
+
+    if not scheduled_events:
+        return render(request, "event_stats.html", {
+            "has_data": False,
+            "type_stats": [],
+            "labels_json": "[]",
+            "minutes_json": "[]",
+            "start_date": start_str,
+            "end_date": end_str,
+        })
+    
+    # Parse date filters safely
+    start_date = None
+    end_date = None
+
+    try:
+        if start_str:
+            start_date = datetime.fromisoformat(start_str).date()
+        if end_str:
+            end_date = datetime.fromisoformat(end_str).date()
+    except ValueError:
+        start_date = None
+        end_date = None
+
+    # Filtering
+    if start_date or end_date:
+        scheduled_events = [
+            ev for ev in scheduled_events
+            if _event_in_range(ev, start_date, end_date)
+        ]
+
+    # After filtering, if nothing matched:
+    if not scheduled_events:
+        return render(request, "event_stats.html", {
+            "has_data": False,
+            "type_stats": [],
+            "labels_json": "[]",
+            "minutes_json": "[]",
+            "start_date": start_str,
+            "end_date": end_str,
+        })
+
+    # Compute time-per-event-type stats
+    type_stats = compute_time_by_event_type(scheduled_events)
+    labels = [row["event_type"] for row in type_stats]
+    minutes = [row["minutes"] for row in type_stats]
+
+    # Return full context (your previous version forgot start/end here)
+    return render(request, "event_stats.html", {
+        "has_data": True,
+        "type_stats": type_stats,
+        "labels_json": json.dumps(labels),
+        "minutes_json": json.dumps(minutes),
+        "start_date": start_str,
+        "end_date": end_str,
+    })
+
+
 # ============================================================
 #  MESSAGE
 # ============================================================
@@ -443,3 +517,11 @@ def _push_undo(request):
     # any new edit clears redo history
     request.session[SESSION_REDO_STACK] = []
     request.session.modified = True
+    
+def _event_in_range(ev, start_date, end_date):
+    ev_start = datetime.fromisoformat(ev["start"]).date()
+    if start_date and ev_start < start_date:
+        return False
+    if end_date and ev_start > end_date:
+        return False
+    return True
