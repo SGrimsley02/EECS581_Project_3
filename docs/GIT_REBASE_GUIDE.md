@@ -170,11 +170,15 @@ git push --force-with-lease origin copilot/rebase-on-new-main-changes
 
 ## Best Practices
 
-1. **Rebase frequently**: Rebase regularly to minimize conflicts
-2. **Don't rebase public branches**: Only rebase branches you're working on alone
-3. **Communicate with your team**: If others are working on the same branch, coordinate before rebasing
-4. **Test after rebasing**: Ensure your code still works after the rebase
-5. **Use `--force-with-lease`**: This is safer than `--force` as it checks if the remote branch has changed
+1. **Rebase frequently**: Rebase regularly to minimize conflicts. The longer you wait, the more changes accumulate on main, leading to more complex conflicts.
+
+2. **Don't rebase public branches**: Only rebase branches you're working on alone. Rebasing rewrites commit history, which can cause serious problems for other developers who have already pulled those commits. They would see diverging histories and face difficult merge conflicts.
+
+3. **Communicate with your team**: If others are working on the same branch, coordinate before rebasing. Let them know you're about to rebase so they can push their changes first or wait until after you're done.
+
+4. **Test after rebasing**: Ensure your code still works after the rebase. Conflicts can introduce subtle bugs, so run your test suite and manually verify functionality.
+
+5. **Use `--force-with-lease`**: This is safer than `--force` as it checks if the remote branch has changed since you last fetched. If someone else has pushed changes, it will reject the push and protect you from accidentally overwriting their work.
 
 ## Troubleshooting
 

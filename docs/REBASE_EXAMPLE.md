@@ -201,7 +201,7 @@ For detailed conflict resolution steps, refer to the [Git Rebase Guide](GIT_REBA
 Given the number of conflicts, consider:
 1. **Review the files**: Understand what changed on main vs. your branch
 2. **Take it one commit at a time**: The rebase applies commits sequentially
-3. **Test after each commit**: Use `git rebase --continue` and test that the code works
+3. **Test during rebase**: After resolving conflicts for a commit and running `git rebase --continue`, you can test the code before moving to the next commit. If issues arise, you can fix them with `git add` and `git rebase --continue` again. This helps catch problems early.
 4. **Ask for help**: If you're unsure about what code to keep, consult with the team
 5. **Consider merge instead**: If conflicts are too complex, a merge might be simpler
 
