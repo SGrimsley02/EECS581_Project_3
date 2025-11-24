@@ -1,0 +1,41 @@
+/*
+    Name: apps/scheduler/static/scheduler/css/calendar-events.css
+    Description: CSS colors for calendar event types.
+    Authors: Kiara Grimsley
+    Created: November 23, 2025
+    Last Modified: November 23, 2025
+*/
+
+#calendar {
+    max-width: 1100px;
+    margin: 2rem auto;
+}
+
+.fc-event.etype-work {
+    background-color: #a6c8ff !important;
+    border-color: #083994 !important;
+}
+
+.fc-event.etype-study-session {
+    background-color: #ffa8a5 !important;
+    border-color: #9c1c17 !important;
+}
+
+.fc-event.etype-class {
+    background-color: #acffac !important;
+    border-color: #227022 !important;
+}
+
+.fc-event.etype-leisure {
+    background-color: #fcafff !important;
+    border-color: #ef099f !important;
+}
+
+/* Fallback for unknown types */
+.fc-event.etype-other {
+    background-color: #c0c0c0 !important;
+}
+
+.fc-event.etype- {
+    background-color: #c0c0c0 !important;
+}
