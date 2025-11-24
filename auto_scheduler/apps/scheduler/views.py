@@ -74,7 +74,7 @@ def upload_ics(request):
     '''
     # Show recap banner if preferences haven't been updated in a while
     check_preferences_recap(request)
-    
+
     if request.method == 'POST': # POST request on form submission
         form = ICSUploadForm(request.POST, request.FILES)
         if form.is_valid(): # For now just if ics file exists
@@ -160,7 +160,7 @@ def add_events(request): # TODO: Ella + Hart
 def view_calendar(request):
     logger.info("view_calendar: entered (method=%s, session_key=%s)",
                 request.method, getattr(request.session, "session_key", None))
-    
+
     # Show recap banner if preferences haven't been updated in a while
     check_preferences_recap(request)
 
@@ -232,7 +232,7 @@ def view_calendar(request):
                 _apply_state(request, prev_state)
 
             return redirect("scheduler:view_calendar")
-        
+
         # REDO
         elif action == "redo":
             undo_stack = request.session.get(SESSION_UNDO_STACK, [])
@@ -263,16 +263,16 @@ def view_calendar(request):
             resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
             resp['Content-Disposition'] = 'attachment; filename="ScheduledCalendar.ics"'
             return resp
-        
+
     # GET: recompute latest lists & preview
     imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
     event_requests   = request.session.get(SESSION_EVENT_REQUESTS, [])
     events = imported_events + event_requests
-    
+
     preview = preview_schedule_order(event_requests)
     for i, t in enumerate(preview, start=1):
         t["schedule_order"] = i
-    
+
     # flags for template (to disable buttons)
     undo_available = bool(request.session.get(SESSION_UNDO_STACK))
     redo_available = bool(request.session.get(SESSION_REDO_STACK))
@@ -319,6 +319,7 @@ def event_feed(request):
             "start": ev.get("start"),
             "end": ev.get("end"),
             "allDay": False,
+            "className": [f"etype-{ev.get('event_type', 'other').lower().replace(' ', '-')}"] if ev.get("event_type") else [],
             "extendedProps": ev,  # keep all original data
         })
 
@@ -349,7 +350,7 @@ def preferences(request):
             # Store updated preferences in the session
             request.session[SESSION_PREFERENCES] = cleaned
             request.session[SESSION_SCHEDULE_UPDATE] = True # Mark schedule for update
-            
+
             # Remember when preferences were last updated (for recap prompt)
             request.session[SESSION_PREF_LAST_UPDATED] = date.today().isoformat()
             # user just updated prefs → reminder should be allowed again in the future
@@ -407,7 +408,7 @@ def event_stats(request):
             "start_date": start_str,
             "end_date": end_str,
         })
-    
+
     # Parse date filters safely
     start_date = None
     end_date = None
@@ -489,7 +490,7 @@ def check_preferences_recap(request):
             "You can review them on the Preferences page.",
             extra_tags="prefs-recap",
         )
-        
+
 # ============================================================
 #  HELPERS
 # ============================================================
@@ -521,7 +522,7 @@ def _push_undo(request):
     # any new edit clears redo history
     request.session[SESSION_REDO_STACK] = []
     request.session.modified = True
-    
+
 def _event_in_range(ev, start_date, end_date):
     ev_start = datetime.fromisoformat(ev["start"]).date()
     if start_date and ev_start < start_date:
