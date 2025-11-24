@@ -23,6 +23,8 @@ from .forms import ICSUploadForm, EventForm, StudyPreferencesForm
 from .utils.icsImportExport import import_ics, export_ics
 from .utils.scheduler import schedule_events
 from .utils.stats import compute_time_by_event_type
+from .models import Calendar
+from .models import EventType as EventTypeModel
 
 import pytz
 from .utils.constants import * # SESSION_*, LOGGER_NAME
@@ -169,7 +171,34 @@ def view_calendar(request):
     scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
     if not scheduled_events or request.session.get(SESSION_SCHEDULE_UPDATE, True):
         logger.info("view_calendar: reschedule needed; scheduling now")
-        imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
+        # Get imported events from DB + session
+        calendar = request.user.calendars.first()
+        db_events = _db_events_to_session(calendar) if calendar else []
+        logger.info("Found DB events: %d", len(db_events))
+        session_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
+
+        # TODO: Improve deduplication logic, extremely rudimentary rn
+        seen = set()
+        imported_events = []
+        for ev in session_events: # Deduplicate, prefer session (live) events
+            uid = ev.get("uid") or ev.get("id")
+            if uid:
+                seen.add(uid)
+            title = ev.get("title") or ev.get("name")
+            start = ev.get("start") or ev.get("start_time")
+            title_key = (title, start)
+            seen.add(title_key) # uid is strong key, this is weak key
+
+            if uid not in seen and title_key not in seen:
+                imported_events.append(ev)
+        for ev in db_events: # Deduplicate, db_events come second
+            uid = ev.get("uid") or ev.get("id")
+            title = ev.get("title") or ev.get("name")
+            start = ev.get("start") or ev.get("start_time")
+            title_key = (title, start)
+            if uid not in seen and title_key not in seen:
+                imported_events.append(ev)
+
         event_requests = request.session.get(SESSION_EVENT_REQUESTS, [])
         
         # Get preferences for scheduling
@@ -319,15 +348,18 @@ def view_calendar(request):
 
         # Export ICS
         elif action == "export":
-            # Use scheduler to find placement of event_requests
-            imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-            event_requests   = request.session.get(SESSION_EVENT_REQUESTS, [])
-            preferences = request.session.get(SESSION_PREFERENCES, {})
-            logger.info("view_calendar: POST(export); scheduling %d tasks against %d imported events",
-                        len(event_requests), len(imported_events))
-            scheduled_events = schedule_events(event_requests, imported_events, preferences=preferences)
-            events = imported_events + scheduled_events
-            ics_stream = export_ics(events)
+            logger.info("view_calendar: export ICS requested with %d events", len(scheduled_events))
+            # Export to DB
+            calendar = request.user.calendars.first()
+            if not calendar: # If no calendar yet, create one
+                calendar = Calendar.objects.create(
+                    owner=request.user,
+                    name="Default",
+                    description="Auto-created calendar"
+                )
+            _save_scheduled_events_to_db(scheduled_events, calendar)
+            # Export to ICS
+            ics_stream = export_ics(scheduled_events)
             resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
             resp['Content-Disposition'] = 'attachment; filename="ScheduledCalendar.ics"'
             return resp
@@ -599,3 +631,42 @@ def _event_in_range(ev, start_date, end_date):
     if end_date and ev_start > end_date:
         return False
     return True
+
+def _db_events_to_session(calendar):
+    """Convert DB events into the dict format used by the scheduler/session."""
+    events = []
+    for ev in calendar.events.all():
+        events.append({
+            "uid": str(ev.id),
+            "title": ev.summary,
+            "name": ev.summary,
+            "description": ev.description or "",
+            "start": ev.start_time.isoformat(),
+            "end": ev.end_time.isoformat(),
+            "event_type": ev.event_type.name if ev.event_type else None,
+            "location": ev.location,
+            "alarm": ev.alarm,
+        })
+    return events
+
+def _save_scheduled_events_to_db(all_events, calendar):
+    """
+    Saves FINAL scheduled events (imported + scheduled tasks) into DB.
+    Clears the old calendar contents first to ensure no duplicates.
+    """
+    calendar.clear_events()
+
+    for ev in all_events:
+        start = datetime.fromisoformat(ev["start"])
+        end = datetime.fromisoformat(ev["end"])
+        event_type = ev.get("event_type") # Convert to EventType instance
+        event_type = EventTypeModel.objects.filter(name=event_type).first() if event_type else None
+        calendar.create_event(
+            summary=ev.get("title") or ev.get("name") or "(No Title)",
+            start_time=start,
+            end_time=end,
+            event_type=event_type,
+            description=ev.get("description", ""),
+            location=ev.get("location"),
+            alarm=ev.get("alarm", False),
+        )
