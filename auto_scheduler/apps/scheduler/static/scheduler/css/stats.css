@@ -1,0 +1,98 @@
+/*
+    Name: apps/scheduler/static/scheduler/css/stats.css
+    Description: Styles for the Event Stats page (tables + heatmap).
+    Authors: Audrey Pan
+    Created: November 24, 2025
+*/
+
+/* ---------- Tables ---------- */
+
+.stats-table-wrapper {
+    margin: 1.2rem auto;
+    width: 60%;
+    display: flex;
+    justify-content: center;
+}
+
+.stats-table,
+.summary-table {
+    border-collapse: collapse;
+    width: 100%;
+    background: #fff;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+}
+
+.stats-table th,
+.stats-table td,
+.summary-table th,
+.summary-table td {
+    padding: 8px 14px;
+    border: 1px solid #ccc;
+}
+
+.stats-table th,
+.summary-table th {
+    background: #f2f2f2;
+    font-weight: 700;
+}
+
+.summary-table {
+    width: 60%;
+    margin: 1.8rem auto;
+}
+
+/* ---------- Heatmap ---------- */
+
+.heatmap-wrapper {
+    width: 100%;
+    max-width: 900px;
+    margin: 0.75rem auto 1.5rem auto;
+}
+
+/* Month/year title */
+.heatmap-month-title {
+    margin: 0.6rem 0 0.8rem 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+
+/* Fixed-height canvas */
+#studyHeatmap {
+    display: block;
+    width: 100%;
+    max-width: 900px;
+}
+
+/* ---------- Legend ---------- */
+
+.heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.7rem;
+    font-size: 0.8rem;
+}
+
+.heatmap-legend span:first-child {
+    margin-right: 0.5rem;
+}
+
+.legend-box {
+    min-width: 52px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+/* Color scale */
+.heat-0 { background-color: #f2f2f2; color: #999; }
+.heat-1 { background-color: #dbeafe; color: #1d4ed8; }
+.heat-2 { background-color: #bfdbfe; color: #1d4ed8; }
+.heat-3 { background-color: #60a5fa; color: #0b255e; }
+.heat-4 { background-color: #1d4ed8; color: #e5e7eb; }

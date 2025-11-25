@@ -7,7 +7,7 @@
                 light styling for layout and alerts.
     Authors: Kiara Grimsley, Audrey Pan
     Created: November 7, 2025
-    Last Modified: November 22, 2025
+    Last Modified: November 24, 2025
 -->
 {% load static %}
 <!-- Metadata -->
@@ -16,7 +16,9 @@
     <meta charset="UTF-8" />
     <title>{% block title %}Auto Scheduler{% endblock %}</title>
     <!-- CSS -->
-    <link rel="stylesheet" href="{% static 'scheduler/css/base.css' %}">
+    <link rel="stylesheet" href="{% static 'scheduler/css/base.css' %}?v=2">
+    <!-- Page-specific CSS (e.g., stats.css) -->
+    {% block extra_css %}{% endblock %}
 </head>
 
 <body>

@@ -4,7 +4,7 @@ Description: Views for handling scheduler functionality and the
                 study preferences form.
 Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan, Reeny Huang, Hart Nurnberg
 Created: October 26, 2025
-Last Modified: November 22, 2025
+Last Modified: November 23, 2025
 '''
 import logging
 
@@ -22,7 +22,7 @@ from .forms import ICSUploadForm, EventForm, StudyPreferencesForm
 
 from .utils.icsImportExport import import_ics, export_ics
 from .utils.scheduler import schedule_events
-from .utils.stats import compute_time_by_event_type
+from .utils.stats import compute_time_by_event_type, compute_monthly_heatmap_data, compute_study_minutes_by_day
 
 import pytz
 from .utils.constants import * # SESSION_*, LOGGER_NAME
@@ -389,16 +389,74 @@ def dismiss_preferences_recap(request):
 def event_stats(request):
     """
     Display basic statistics for the user's scheduled events.
-    Initial focus: total time spent per event_type, with a chart.
+    - Bar chart: total time spent per event_type (with optional date filter).
+    - Monthly study heatmap: selectable month/year via dropdowns.
     """
     check_preferences_recap(request)
 
+    # Make sure we have an up-to-date schedule, same logic as view_calendar
     scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
+    if not scheduled_events or request.session.get(SESSION_SCHEDULE_UPDATE, True):
+        imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
+        event_requests = request.session.get(SESSION_EVENT_REQUESTS, [])
 
-    # If no events at all, show empty state but still include filter fields
+        scheduled_only = schedule_events(event_requests, imported_events)
+        scheduled_events = imported_events + scheduled_only
+
+        request.session[SESSION_SCHEDULED_EVENTS] = scheduled_events
+        request.session[SESSION_SCHEDULE_UPDATE] = False
+        request.session.modified = True
+
+    # filters from query params 
+    # Date filters for the bar chart
     start_str = request.GET.get("start", "")
     end_str = request.GET.get("end", "")
 
+    # Month/year picker for the heatmap (from dropdowns)
+    heat_year_str = request.GET.get("heat_year", "")
+    heat_month_num_str = request.GET.get("heat_month_num", "")
+
+    heat_today = None
+    if heat_year_str and heat_month_num_str:
+        try:
+            heat_today = date(int(heat_year_str), int(heat_month_num_str), 1)
+        except ValueError:
+            heat_today = None
+
+    if not heat_today:
+        # Default: current month
+        heat_today = date.today()
+
+    # Build heatmap context for the chosen month
+    heatmap_ctx = compute_monthly_heatmap_data(
+        scheduled_events,
+        today=heat_today,
+        study_event_type="Study Session",  # change if your study type label differs
+    )
+
+    # Month/year + options for the dropdowns
+    heat_year = heat_today.year
+    heat_month_num = heat_today.month
+
+    # allow selecting from 2 years before to 2 years after the chosen year
+    heat_year_options = list(range(heat_year - 2, heat_year + 3))
+
+    heat_month_options = [
+        {"value": 1,  "label": "January"},
+        {"value": 2,  "label": "February"},
+        {"value": 3,  "label": "March"},
+        {"value": 4,  "label": "April"},
+        {"value": 5,  "label": "May"},
+        {"value": 6,  "label": "June"},
+        {"value": 7,  "label": "July"},
+        {"value": 8,  "label": "August"},
+        {"value": 9,  "label": "September"},
+        {"value": 10, "label": "October"},
+        {"value": 11, "label": "November"},
+        {"value": 12, "label": "December"},
+    ]
+
+    # No events at all --> no type stats, but still show the month heatmap (likely empty)
     if not scheduled_events:
         return render(request, "event_stats.html", {
             "has_data": False,
@@ -407,12 +465,21 @@ def event_stats(request):
             "minutes_json": "[]",
             "start_date": start_str,
             "end_date": end_str,
+            # heatmap context
+            "heat_weeks": heatmap_ctx["weeks"],
+            "heat_has_data": heatmap_ctx["has_data"],
+            "heat_month_name": heatmap_ctx["month_name"],
+            "heat_year": heatmap_ctx["year"],
+            "heat_summary": heatmap_ctx["summary"],
+            "heat_year": heat_year,
+            "heat_month_num": heat_month_num,
+            "heat_year_options": heat_year_options,
+            "heat_month_options": heat_month_options,
         })
 
-    # Parse date filters safely
+    # parse bar-chart date range (YYYY-MM-DD)
     start_date = None
     end_date = None
-
     try:
         if start_str:
             start_date = datetime.fromisoformat(start_str).date()
@@ -422,15 +489,18 @@ def event_stats(request):
         start_date = None
         end_date = None
 
-    # Filtering
+    # Default: no filter --> use all scheduled events
+    filtered_events = scheduled_events
+
+    # Apply date-range filter if either bound is set
     if start_date or end_date:
-        scheduled_events = [
+        filtered_events = [
             ev for ev in scheduled_events
             if _event_in_range(ev, start_date, end_date)
         ]
 
-    # After filtering, if nothing matched:
-    if not scheduled_events:
+    # If nothing matches the filter, we still show the heatmap but no type stats
+    if not filtered_events:
         return render(request, "event_stats.html", {
             "has_data": False,
             "type_stats": [],
@@ -438,22 +508,41 @@ def event_stats(request):
             "minutes_json": "[]",
             "start_date": start_str,
             "end_date": end_str,
+            "heat_weeks": heatmap_ctx["weeks"],
+            "heat_has_data": heatmap_ctx["has_data"],
+            "heat_month_name": heatmap_ctx["month_name"],
+            "heat_year": heatmap_ctx["year"],
+            "heat_summary": heatmap_ctx["summary"],
+            "heat_year": heat_year,
+            "heat_month_num": heat_month_num,
+            "heat_year_options": heat_year_options,
+            "heat_month_options": heat_month_options,
         })
 
-    # Compute time-per-event-type stats
-    type_stats = compute_time_by_event_type(scheduled_events)
+    # event-type stats for bar chart
+    type_stats = compute_time_by_event_type(filtered_events)
     labels = [row["event_type"] for row in type_stats]
     minutes = [row["minutes"] for row in type_stats]
 
-    # Return full context (your previous version forgot start/end here)
-    return render(request, "event_stats.html", {
+    context = {
         "has_data": True,
         "type_stats": type_stats,
         "labels_json": json.dumps(labels),
         "minutes_json": json.dumps(minutes),
         "start_date": start_str,
         "end_date": end_str,
-    })
+        # heatmap context
+        "heat_weeks": heatmap_ctx["weeks"],
+        "heat_has_data": heatmap_ctx["has_data"],
+        "heat_month_name": heatmap_ctx["month_name"],
+        "heat_year": heatmap_ctx["year"],
+        "heat_summary": heatmap_ctx["summary"],
+        "heat_year": heat_year,
+        "heat_month_num": heat_month_num,
+        "heat_year_options": heat_year_options,
+        "heat_month_options": heat_month_options,
+    }
+    return render(request, "event_stats.html", context)
 
 
 # ============================================================
@@ -524,7 +613,31 @@ def _push_undo(request):
     request.session.modified = True
 
 def _event_in_range(ev, start_date, end_date):
-    ev_start = datetime.fromisoformat(ev["start"]).date()
+    """
+    Return True if the event's start date is within [start_date, end_date].
+    Handles start as either an ISO string or a datetime object.
+    """
+    start = ev.get("start")
+    if not start:
+        # No start time → treat as out of range
+        return False
+
+    # If it's a string, parse it; if it's already a datetime, use it
+    if isinstance(start, str):
+        try:
+            start_dt = datetime.fromisoformat(start)
+        except ValueError:
+            # Bad format, skip this event
+            return False
+    else:
+        # Might already be a datetime
+        start_dt = start
+
+    if not isinstance(start_dt, datetime):
+        return False
+
+    ev_start = start_dt.date()
+
     if start_date and ev_start < start_date:
         return False
     if end_date and ev_start > end_date:
