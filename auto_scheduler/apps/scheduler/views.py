@@ -101,7 +101,7 @@ def upload_ics(request):
     return render(request, 'upload_ics.html', {'form': form}) # Render
 
 @login_required
-def add_events(request): # TODO: Ella + Hart
+def add_events(request):
     '''
     View to add new events to a calendar after ICS upload.
     '''
@@ -174,7 +174,7 @@ def view_calendar(request):
         # Get imported events from DB + session
         calendar = request.user.calendars.first()
         db_events = _db_events_to_session(calendar) if calendar else []
-        logger.info("Found DB events: %d", len(db_events))
+        logger.debug("Found DB events: %d", len(db_events))
         session_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
 
         # TODO: Improve deduplication logic, extremely rudimentary rn
@@ -200,7 +200,7 @@ def view_calendar(request):
                 imported_events.append(ev)
 
         event_requests = request.session.get(SESSION_EVENT_REQUESTS, [])
-        
+
         # Get preferences for scheduling
         preferences = request.session.get(SESSION_PREFERENCES, {})
 
@@ -234,9 +234,6 @@ def view_calendar(request):
             new_title = request.POST.get("new_title", "").strip()
             new_description = request.POST.get("new_description", "").strip()
             new_event_type = request.POST.get("new_event_type", "").strip()
-
-            # Allowed event types (must match the UI dropdown)
-            allowed_event_types = EventType.values
 
             imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
             event_requests = request.session.get(SESSION_EVENT_REQUESTS, [])
