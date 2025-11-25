@@ -8,7 +8,7 @@ Last Modified: November 22, 2025
 
 from django.urls import path, include
 from django.shortcuts import redirect
-from .views import preferences, upload_ics, add_events, view_calendar, auth_view, home, event_feed, dismiss_preferences_recap, event_stats
+from .views import preferences, upload_ics, add_events, view_calendar, auth_view, home, event_feed, dismiss_preferences_recap, event_stats, delete_event
 
 app_name = "scheduler"
 
@@ -23,5 +23,6 @@ urlpatterns = [
     path('events/', event_feed, name='event_feed'),
     path("preferences/dismiss-recap/", dismiss_preferences_recap, name="dismiss_preferences_recap"),
     path('stats/', event_stats, name='event_stats'),
+    path('delete_event/<str:event_id>/', delete_event, name='delete_event'),
 
 ]

@@ -418,6 +418,12 @@ def schedule_single_event(
             start_dt = cand_s
             end_dt = start_dt + needed
 
+            # Safe id
+            event_id = event.get("uid") if event.get("uid") is not None else event.get("id")
+            if event_id is None:
+                # Default ID: title_startTime
+                event_id = f"{event.get('title')}_{start_dt.isoformat()}"
+            logger.info(f"\nEvent ID scheduled: {event_id}\n")
             new_ev = {
                 "name": event.get("title"),
                 "description": event.get("description"),
@@ -425,6 +431,7 @@ def schedule_single_event(
                 "end": end_dt.isoformat(),      # tz-aware UTC
                 "event_type": event.get("event_type"),
                 "priority": event.get("priority"),
+                "uid": event_id
             }
             scheduled_events.append(new_ev)
             logger.info(
@@ -482,11 +489,11 @@ def schedule_events(
         -int(t.get("duration_minutes", 0))
         )
     )
-    
+
     scheduled_events = []
     logger.info("schedule_events: window=[%s, %s) initial_busy=%d events_sorted=%d",
                 window_start, window_end, len(current_busy), len(events_sorted))
-    
+
     # Use preferred days/times if available
     blackout_days = convert_blackout_days(preferences) if preferences else []
     time_of_day_ranks = convert_time_of_day_rankings(preferences) if preferences else []
@@ -524,7 +531,7 @@ def schedule_events(
                 candidates.sort(key=lambda x: x[0])
 
             needed = timedelta(minutes=chunk_minutes)
-            logger.info("schedule_events: candidates=%s", candidates)
+            logger.debug("schedule_events: candidates=%s", candidates)
             for cand_s, cand_e in candidates:
                 if (cand_e - cand_s) >= needed:
                     # Try to place inside preferred time-of-day subwindow if we have preferences
@@ -553,6 +560,10 @@ def schedule_events(
                                 event.get("title"), chunk_minutes
                             )
 
+                    event_id = event.get("uid") if event.get("uid") is not None else event.get("id")
+                    if event_id is None:
+                        # Default ID: title_startTime
+                        event_id = f"{event.get('title')}_{start_dt.isoformat()}"
                     new_ev = {
                         "name": event.get("title"),
                         "description": event.get("description"),
@@ -560,6 +571,7 @@ def schedule_events(
                         "end": end_dt.isoformat(),      # tz-aware UTC
                         "event_type": event.get("event_type"),
                         "priority": event.get("priority"),
+                        "uid": event_id
                     }
                     scheduled_events.append(new_ev)
                     logger.info("schedule_events: scheduled title=%r start=%s end=%s", new_ev["name"], start_dt, end_dt)
@@ -569,6 +581,10 @@ def schedule_events(
                     break
             if not placed:
                 logger.warning("schedule_events: UNSCHEDULED title=%r minutes=%d (no fit)", event.get("title"), chunk_minutes)
+                event_id = event.get("uid") if event.get("uid") is not None else event.get("id")
+                if event_id is None:
+                    # Default ID: title_unscheduled_chunkMinutes
+                    event_id = f"{event.get('title')}_unscheduled_{chunk_minutes}min"
                 scheduled_events.append({
                     "name": event.get("title"),
                     "description": event.get("description"),
@@ -577,7 +593,8 @@ def schedule_events(
                     "event_type": event.get("event_type"),
                     "priority": event.get("priority"),
                     "unscheduled": True,
-                    "requested_minutes": chunk_minutes
+                    "requested_minutes": chunk_minutes,
+                    "uid": event_id
                 })
                 continue  # Move on to next chunk
 
@@ -600,6 +617,11 @@ def schedule_events(
                     )
 
                     if not conflict:
+                        event_id = event.get("uid") if event.get("uid") is not None else event.get("id")
+                        if event_id is None:
+                            # Default ID: title_startTime
+                            event_id = f"{event.get('title')}_{exact_start.isoformat()}"
+
                         new_ev = {
                             "name": event.get("title"),
                             "description": event.get("description"),
@@ -607,6 +629,7 @@ def schedule_events(
                             "end": exact_end.isoformat(),
                             "event_type": event.get("event_type"),
                             "priority": event.get("priority"),
+                            "uid": event_id
                         }
                         scheduled_events.append(new_ev)
                         current_busy.append((exact_start, exact_end))

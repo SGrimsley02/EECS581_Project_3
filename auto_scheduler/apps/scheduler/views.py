@@ -209,6 +209,8 @@ def view_calendar(request):
                     len(event_requests), len(imported_events))
         scheduled_events = imported_events + schedule_events(event_requests, imported_events, preferences=preferences)
         request.session[SESSION_SCHEDULED_EVENTS] = scheduled_events
+        request.session[SESSION_IMPORTED_EVENTS] = None # Clear imported events
+        request.session[SESSION_EVENT_REQUESTS] = None # Clear event requests
         request.session[SESSION_SCHEDULE_UPDATE] = False # Reset update flag
         request.session.modified = True # Ensure session is saved
 
@@ -362,13 +364,8 @@ def view_calendar(request):
             return resp
 
     # GET: recompute latest lists & preview
-    imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-    event_requests   = request.session.get(SESSION_EVENT_REQUESTS, [])
-    events = imported_events + event_requests
 
-    preview = preview_schedule_order(event_requests)
-    for i, t in enumerate(preview, start=1):
-        t["schedule_order"] = i
+
 
     # flags for template (to disable buttons)
     undo_available = bool(request.session.get(SESSION_UNDO_STACK))
@@ -390,10 +387,10 @@ def view_calendar(request):
         'DEBUG': settings.DEBUG,
         'debug_events': scheduled_events,
         'initial_date': f"{year:04d}-{month:02d}-01",
-        'events': events,
-        'preview_tasks': preview,
-        'imported_events': imported_events,
-        'event_requests': event_requests,
+        'events': scheduled_events,
+        'preview_tasks': None,
+        'imported_events': None,
+        'event_requests': None,
         'undo_available': undo_available,
         'redo_available': redo_available,
         'event_type_choices': EventType.values,
@@ -552,6 +549,24 @@ def event_stats(request):
         "start_date": start_str,
         "end_date": end_str,
     })
+
+# ============================================================
+#  HANDLERS
+# ============================================================
+
+def delete_event(request, event_id):
+    print("delete_event: ENTERED", request.method, request.session.session_key, event_id)
+    if request.method == 'POST':
+        if event_id is not None:
+            _push_undo(request)  # snapshot before the change
+
+            scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
+            updated_events = [ev for ev in scheduled_events if str(ev.get("uid")) != str(event_id)]
+            request.session[SESSION_SCHEDULED_EVENTS] = updated_events
+            request.session.modified = True
+
+            return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'failed'}, status=400)
 
 
 # ============================================================
