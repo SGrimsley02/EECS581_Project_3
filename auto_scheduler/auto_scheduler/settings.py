@@ -118,7 +118,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# Who in their right mind defines a timezone as a constant, then defines
+# wrapper functions that make no mention of this called "get_current_timezone"? I hate Django.
+TIME_ZONE = 'America/Chicago'
 
 USE_I18N = True
 

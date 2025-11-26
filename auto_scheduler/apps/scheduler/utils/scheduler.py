@@ -3,9 +3,10 @@ Name: apps/scheduler/utils/scheduler.py
 Description: Module for scheduling tasks
 Authors: Hart Nurnberg, Audrey Pan, Kiara Grimsley, Ella Nguyen
 Created: November 7, 2025
-Last Modified: November 22, 2025
+Last Modified: November 25, 2025
 '''
 
+from django.utils.timezone import make_aware, get_current_timezone, is_naive
 from datetime import datetime, date, time, timedelta
 from typing import List, Tuple, Dict, Optional
 import copy
@@ -45,20 +46,24 @@ def _to_dt_utc(x) -> Optional[datetime]:
     Accepts a datetime or ISO string and returns a timezone-aware UTC datetime.
     Used on events from ICS files.
     Returns None if x is empty.
+    Treat naive datetimes as server-local then convert to UTC.
     """
     logger.debug("_to_dt_utc: input=%r (type=%s)", x, type(x).__name__)
     if not x:
         logger.debug("_to_dt_utc: returning None (empty input)")
         return None
     if isinstance(x, datetime):
-        out = x if x.tzinfo else x.replace(tzinfo=UTC)
-        logger.debug("_to_dt_utc: datetime -> %s", out)
-        return out
+        if x.tzinfo:
+            return x.astimezone(UTC)
+        # naive -> assume server local
+        local = make_aware(x, get_current_timezone())
+        return local.astimezone(UTC)
     # ISO string from import_ics (e.g., '2025-11-08T14:30:00+00:00')
     dt = datetime.fromisoformat(str(x))
-    out = dt.astimezone(UTC) if dt.tzinfo else dt.replace(tzinfo=UTC)
-    logger.debug("_to_dt_utc: iso -> %s", out)
-    return dt.astimezone(UTC) if dt.tzinfo else dt.replace(tzinfo=UTC)
+    if dt.tzinfo:
+        return dt.astimezone(UTC)
+    local = make_aware(dt, get_current_timezone())
+    return local.astimezone(UTC)
 
 
 # Modified to_datetime to accept a local timezone and return UTC-aware datetime
@@ -72,7 +77,7 @@ def to_datetime(d: date, t: time, tzinfo_local=None) -> datetime:
 	base = datetime.combine(d, t if t else time.min)
 	# Normalize tzinfo_local: accept string or tzinfo object
 	if tzinfo_local is None:
-		local_tz = UTC
+		local_tz = get_current_timezone()
 	elif isinstance(tzinfo_local, str):
 		local_tz = pytz.timezone(tzinfo_local)
 	else:
@@ -602,17 +607,17 @@ def schedule_events(
             if event.get("recurring") and event.get("recurring_until"):
                 recurrence_end_date = event["recurring_until"]
 
-                original_time = start_dt.time()
                 occurrence_date = start_dt.date() + timedelta(weeks=1)
-
+                next_start_dt = start_dt
+                next_end_dt = end_dt
                 while occurrence_date <= recurrence_end_date:
 
                     # Step 1: Try same time on same day
-                    exact_start = to_datetime(occurrence_date, original_time)
-                    exact_end = exact_start + timedelta(minutes=chunk_minutes)
+                    next_start_dt = next_start_dt + timedelta(weeks=1)
+                    next_end_dt   = end_dt + timedelta(weeks=1)
 
                     conflict = any(
-                        not (exact_end <= busy_s or exact_start >= busy_e)
+                        not (next_start_dt < busy_s or next_end_dt > busy_e)
                         for busy_s, busy_e in current_busy
                     )
 
@@ -620,22 +625,22 @@ def schedule_events(
                         event_id = event.get("uid") if event.get("uid") is not None else event.get("id")
                         if event_id is None:
                             # Default ID: title_startTime
-                            event_id = f"{event.get('title')}_{exact_start.isoformat()}"
+                            event_id = f"{event.get('title')}_{next_start_dt.isoformat()}"
 
                         new_ev = {
                             "name": event.get("title"),
                             "description": event.get("description"),
-                            "start": exact_start.isoformat(),
-                            "end": exact_end.isoformat(),
+                            "start": next_start_dt.isoformat(),
+                            "end": next_end_dt.isoformat(),
                             "event_type": event.get("event_type"),
                             "priority": event.get("priority"),
                             "uid": event_id
                         }
                         scheduled_events.append(new_ev)
-                        current_busy.append((exact_start, exact_end))
+                        current_busy.append((next_start_dt, next_end_dt))
                         current_busy[:] = merge_busy_slots(current_busy)
 
-                        logger.info("scheduled_events: recurring SAME TIME placement: %s", exact_start)
+                        logger.info("scheduled_events: recurring SAME TIME placement: %s", next_start_dt)
                         occurrence_date += timedelta(weeks=1)
                         continue
 
