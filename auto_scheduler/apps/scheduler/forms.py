@@ -1,7 +1,7 @@
 '''
 Name: apps/scheduler/forms.py
 Description: Forms for file uploading in the scheduler app and study preferences questionnaire.
-Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan, Hart Nurnberg
+Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan, Hart Nurnberg, Lauren D'Souza
 Created: November 7, 2025
 Last Modified: November 22, 2025
 '''

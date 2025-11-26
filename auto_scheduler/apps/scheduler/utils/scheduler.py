@@ -1,9 +1,9 @@
 '''
 Name: apps/scheduler/utils/scheduler.py
 Description: Module for scheduling tasks
-Authors: Hart Nurnberg, Audrey Pan, Kiara Grimsley, Ella Nguyen
+Authors: Hart Nurnberg, Audrey Pan, Kiara Grimsley, Ella Nguyen, Lauren D'Souza
 Created: November 7, 2025
-Last Modified: November 25, 2025
+Last Modified: November 26, 2025
 '''
 
 from django.utils.timezone import make_aware, get_current_timezone, is_naive
@@ -14,7 +14,6 @@ import pytz
 from pytz import UTC
 import logging
 from .constants import PRIORITY_ORDER
-
 logger = logging.getLogger("apps.scheduler")
 
 UTC = pytz.UTC
@@ -381,77 +380,104 @@ def find_preferred_subwindow(cand_s: datetime, cand_e: datetime, needed: timedel
 				return (ov_s, ov_s + needed)
 	logger.debug("find_preferred_subwindow: no preferred fit found")
 	return None
+
 def schedule_single_event(
     event: dict,
     chunk_minutes: int,
     current_busy: List[Tuple[datetime, datetime]],
     scheduled_events: List[dict],
-    window_start: datetime,
-    window_end: datetime,
-    range_start: Optional[datetime] = None,
-    range_end: Optional[datetime] = None,
+    candidates: List[Tuple[datetime, datetime]],
+    preferences: dict = {},
 ) -> Tuple[Optional[datetime], Optional[datetime]]:
     """
     Schedule a single chunk of chunk_minutes minutes for event.
-    - Looks for a free slot within [range_start, range_end) if provided,
-      otherwise within the global [window_start, window_end) range.
+    - Looks for a free slot within provided candidates.
+    - Tries to place in preferred time-of-day windows first (if candidates are scored).
     - Mutates `scheduled_events` and `current_busy` if it finds a placement.
 
     Returns:
         (start_dt, end_dt) on success, or (None, None) if no fit is found.
     """
     needed = timedelta(minutes=chunk_minutes)
-
-    # Use either the caller-supplied range or the global scheduling window
-    local_ws = range_start or window_start
-    local_we = range_end or window_end
-
-    # Build free slots within the chosen range
-    merged_busy = merge_busy_slots(current_busy)
-    free_slots = invert_slots(merged_busy, local_ws, local_we)
-
-    # Generate candidate windows based on event's date/time constraints
-    candidates: List[Tuple[datetime, datetime]] = []
-    for free_s, free_e in free_slots:
-        for cand in generate_candidate_windows_for_event(event, free_s, free_e):
-            candidates.append(cand)
-
-    candidates.sort(key=lambda x: x[0])
-
+    placed = False
     for cand_s, cand_e in candidates:
-        if (cand_e - cand_s) >= needed:
-            start_dt = cand_s
-            end_dt = start_dt + needed
+        if (cand_e - cand_s) < needed: # too small
+            continue
 
-            # Safe id
-            event_id = event.get("uid") if event.get("uid") is not None else event.get("id")
-            if event_id is None:
-                # Default ID: title_startTime
-                event_id = f"{event.get('title')}_{start_dt.isoformat()}"
-            logger.info(f"\nEvent ID scheduled: {event_id}\n")
-            new_ev = {
-                "name": event.get("title"),
-                "description": event.get("description"),
-                "start": start_dt.isoformat(),  # tz-aware UTC
-                "end": end_dt.isoformat(),      # tz-aware UTC
-                "event_type": event.get("event_type"),
-                "priority": event.get("priority"),
-                "uid": event_id
-            }
-            scheduled_events.append(new_ev)
-            logger.info(
-                "schedule_single_event: scheduled title=%r start=%s end=%s",
-                new_ev["name"], start_dt, end_dt
+        # Try to place in preferred subwindow
+        start_dt = None
+        end_dt = None
+        if preferences.get("time_of_day_ranks"):
+            sub = find_preferred_subwindow(
+                cand_s, cand_e, needed,
+                preferences.get("time_of_day_ranks"),
+                wake_time=preferences.get("wake_time"),
+                bed_time=preferences.get("bed_time"),
+                local_tz=preferences.get("local_tz"),
             )
 
-            # Update busy slots in-place so callers see the new state
-            current_busy.append((start_dt, end_dt))
-            merged = merge_busy_slots(current_busy)
-            current_busy[:] = merged
+            if sub:
+                start_dt, end_dt = sub
+                placed = True
 
-            return start_dt, end_dt
+        # No preferred placement found, use candidate window directly
+        if not placed:
+            start_dt = cand_s
+            end_dt = cand_s + needed
 
-    # No fit found
+            # Check stay in candidate window
+            if end_dt > cand_e:
+                continue
+            placed = True
+
+        # Found placement, schedule it
+        event_id = event.get("uid") if event.get("uid") is not None else event.get("id")
+        if event_id is None:
+            # Default ID: title_startTime
+            event_id = f"{event.get('title')}_{start_dt.isoformat()}"
+
+        new_ev = {
+            "name": event.get("title"),
+            "description": event.get("description"),
+            "start": start_dt.isoformat(),  # tz-aware UTC
+            "end": end_dt.isoformat(),      # tz-aware UTC
+            "event_type": event.get("event_type"),
+            "priority": event.get("priority"),
+            "uid": event_id
+        }
+
+        # Add to scheduled events and update busy slots
+        scheduled_events.append(new_ev)
+        current_busy.append((start_dt, end_dt))
+        current_busy[:] = merge_busy_slots(current_busy)
+
+        logger.info(
+            "schedule_events: scheduled title=%r start=%s end=%s",
+            new_ev["name"], start_dt, end_dt
+        )
+        return start_dt, end_dt
+
+    # No placement found
+    logger.warning(
+        "schedule_events: UNSCHEDULED title=%r minutes=%d (no fit)",
+        event.get("title"), chunk_minutes
+    )
+
+    event_id = event.get("uid") or event.get("id")
+    if event_id is None:
+        event_id = f"{event.get('title')}_unscheduled_{chunk_minutes}min"
+
+    scheduled_events.append({
+        "name": event.get("title"),
+        "description": event.get("description"),
+        "start": None,
+        "end": None,
+        "event_type": event.get("event_type"),
+        "priority": event.get("priority"),
+        "unscheduled": True,
+        "requested_minutes": chunk_minutes,
+        "uid": event_id
+    })
     return None, None
 
 def schedule_events(
@@ -479,13 +505,15 @@ def schedule_events(
     else:
         window_start = _to_dt_utc(window_start)
     if window_end is None:
-        window_end = window_start + timedelta(days=14)
+        window_end = window_start + timedelta(days=31)
     else:
         window_end = _to_dt_utc(window_end)
 
+    # Build initial busy slots from imported (static) events
     busy = get_busy_from_imported(imported_events)
     current_busy = merge_busy_slots(busy[:])
 
+    # Expand event requests, sort by priority/duration
     events = [expand_event_request(t) for t in event_requests_raw]
     events_sorted = sorted(
         events,
@@ -499,6 +527,7 @@ def schedule_events(
     logger.info("schedule_events: window=[%s, %s) initial_busy=%d events_sorted=%d",
                 window_start, window_end, len(current_busy), len(events_sorted))
 
+    # Set up preference-based constraints
     # Use preferred days/times if available
     blackout_days = convert_blackout_days(preferences) if preferences else []
     time_of_day_ranks = convert_time_of_day_rankings(preferences) if preferences else []
@@ -510,178 +539,115 @@ def schedule_events(
     # determine local timezone to interpret time-of-day and wake/bed in user's local tz
     local_tz = _get_local_tz(preferences)
 
+    # Main scheduling loop
     for event in events_sorted:
-        logger.info("schedule_events: placing event title=%r duration=%s priority=%s split=%s split_minutes=%r",
-                    event.get("title"), event.get("duration_minutes"), event.get("priority"),
-                    event.get("split"), event.get("split_minutes"))
+        logger.info("schedule_events: placing event title=%r", event.get("title"))
+        # Split event into chunks if needed
         chunks = split_into_chunks(event["duration_minutes"], event.get("split", False), event.get("split_minutes"))
+        # Try to place each chunk of an event
         for chunk_minutes in chunks:
-            placed = False
-            free_slots = invert_slots(merge_busy_slots(current_busy), window_start, window_end)
-            logger.debug("schedule_events: chunk=%d free_slots=%d", chunk_minutes, len(free_slots))
-            candidates = []
-            for free_s, free_e in free_slots:
-                for cand in generate_candidate_windows_for_event(event, free_s, free_e, wake_time=wake_time, bed_time=bed_time, local_tz=local_tz):
-                    # Filter candidates based on preferred days
-                    if not blackout_days:
-                        candidates.append(cand)
-                    elif cand[0].date().weekday() not in blackout_days:
-                        candidates.append(cand)
+            # Build candidate windows for this event
+            chunk_preferences = {
+                "blackout_days": blackout_days,
+                "time_of_day_ranks": time_of_day_ranks,
+                "wake_time": wake_time,
+                "bed_time": bed_time,
+                "local_tz": local_tz,
+            }
+            candidates = _form_candidates(current_busy, window_start, window_end, event, chunk_preferences)
 
-            # If we have time-of-day preferences, score candidates by overlap with preferred windows for that candidate's day
-            if time_of_day_ranks:
-                candidates = score_and_sort_candidates(candidates, time_of_day_ranks, local_tz)
-            else:
-                # no time preferences -> keep chronological ordering
-                candidates.sort(key=lambda x: x[0])
-
-            needed = timedelta(minutes=chunk_minutes)
             logger.debug("schedule_events: candidates=%s", candidates)
-            for cand_s, cand_e in candidates:
-                if (cand_e - cand_s) >= needed:
-                    # Try to place inside preferred time-of-day subwindow if we have preferences
-                    start_dt = None
-                    end_dt = None
-                    if time_of_day_ranks:
-                        sub = find_preferred_subwindow(cand_s, cand_e, needed, time_of_day_ranks, wake_time=wake_time, bed_time=bed_time, local_tz=local_tz)
-                        if sub:
-                            start_dt, end_dt = sub
-                    # Fallback: place at candidate start if no preferred subwindow fits
-                    if start_dt is None:
-                        # First, schedule this chunk anywhere in the global window
-                        start_dt, end_dt = schedule_single_event(
-                            event=event,
-                            chunk_minutes=chunk_minutes,
-                            current_busy=current_busy,
-                            scheduled_events=scheduled_events,
-                            window_start=window_start,
-                            window_end=window_end,
-                        )
 
-                        if start_dt is None:
-                            # Could not schedule this chunk at all
-                            logger.warning(
-                                "schedule_events: UNSCHEDULED title=%r minutes=%d (no fit)",
-                                event.get("title"), chunk_minutes
-                            )
-
-                    event_id = event.get("uid") if event.get("uid") is not None else event.get("id")
-                    if event_id is None:
-                        # Default ID: title_startTime
-                        event_id = f"{event.get('title')}_{start_dt.isoformat()}"
-                    new_ev = {
-                        "name": event.get("title"),
-                        "description": event.get("description"),
-                        "start": start_dt.isoformat(),  # tz-aware UTC
-                        "end": end_dt.isoformat(),      # tz-aware UTC
-                        "event_type": event.get("event_type"),
-                        "priority": event.get("priority"),
-                        "uid": event_id
-                    }
-                    scheduled_events.append(new_ev)
-                    logger.info("schedule_events: scheduled title=%r start=%s end=%s", new_ev["name"], start_dt, end_dt)
-                    current_busy.append((start_dt, end_dt))
-                    current_busy = merge_busy_slots(current_busy)
-                    placed = True
-                    break
-            if not placed:
-                logger.warning("schedule_events: UNSCHEDULED title=%r minutes=%d (no fit)", event.get("title"), chunk_minutes)
-                event_id = event.get("uid") if event.get("uid") is not None else event.get("id")
-                if event_id is None:
-                    # Default ID: title_unscheduled_chunkMinutes
-                    event_id = f"{event.get('title')}_unscheduled_{chunk_minutes}min"
-                scheduled_events.append({
-                    "name": event.get("title"),
-                    "description": event.get("description"),
-                    "start": None,
-                    "end": None,
-                    "event_type": event.get("event_type"),
-                    "priority": event.get("priority"),
-                    "unscheduled": True,
-                    "requested_minutes": chunk_minutes,
-                    "uid": event_id
-                })
-                continue  # Move on to next chunk
+            # Try to place this chunk in one of the candidates
+            start_time, end_time = schedule_single_event(event=event, chunk_minutes=chunk_minutes, current_busy=current_busy, scheduled_events=scheduled_events, candidates=candidates)
 
             # Recurring weekly logic (try same time, then same day, then same week)
             if event.get("recurring") and event.get("recurring_until"):
                 recurrence_end_date = event["recurring_until"]
 
-                occurrence_date = start_dt.date() + timedelta(weeks=1)
-                next_start_dt = start_dt
-                next_end_dt = end_dt
+                next_start_dt = start_time
+                next_end_dt = end_time
+                occurrence_date = next_start_dt.date() + timedelta(weeks=1)
                 while occurrence_date <= recurrence_end_date:
-
                     # Step 1: Try same time on same day
-                    next_start_dt = next_start_dt + timedelta(weeks=1)
-                    next_end_dt   = end_dt + timedelta(weeks=1)
-
-                    conflict = any(
-                        not (next_start_dt < busy_s or next_end_dt > busy_e)
-                        for busy_s, busy_e in current_busy
-                    )
-
-                    if not conflict:
-                        event_id = event.get("uid") if event.get("uid") is not None else event.get("id")
-                        if event_id is None:
-                            # Default ID: title_startTime
-                            event_id = f"{event.get('title')}_{next_start_dt.isoformat()}"
-
-                        new_ev = {
-                            "name": event.get("title"),
-                            "description": event.get("description"),
-                            "start": next_start_dt.isoformat(),
-                            "end": next_end_dt.isoformat(),
-                            "event_type": event.get("event_type"),
-                            "priority": event.get("priority"),
-                            "uid": event_id
-                        }
-                        scheduled_events.append(new_ev)
-                        current_busy.append((next_start_dt, next_end_dt))
-                        current_busy[:] = merge_busy_slots(current_busy)
-
-                        logger.info("scheduled_events: recurring SAME TIME placement: %s", next_start_dt)
-                        occurrence_date += timedelta(weeks=1)
-                        continue
-
-                    # Step 2: Try another time same day
-                    day_start = to_datetime(occurrence_date, time.min)
-                    day_end   = to_datetime(occurrence_date, time.max)
+                    time_start = next_start_dt.time()
+                    time_end   = next_end_dt.time()
+                    cand_start = to_datetime(occurrence_date, time_start, tzinfo_local=local_tz)
+                    cand_end   = cand_start + timedelta(minutes=chunk_minutes)
 
                     event_for_day = event.copy()
                     event_for_day["date_start"] = occurrence_date
                     event_for_day["date_end"]   = occurrence_date
+                    event_for_day["time_start"] = time_start
+                    event_for_day["time_end"]   = time_end
 
-                    r_start, r_end = schedule_single_event(
+                    candidates = _form_candidates(
+                        busy_slots=current_busy,
+                        window_start=cand_start,
+                        window_end=cand_end,
+                        event=event_for_day,
+                        preferences=chunk_preferences,
+                    )
+
+                    r_start, _ = schedule_single_event(
                         event=event_for_day,
                         chunk_minutes=chunk_minutes,
                         current_busy=current_busy,
                         scheduled_events=scheduled_events,
-                        window_start=window_start,
-                        window_end=window_end,
-                        range_start=day_start,
-                        range_end=day_end,
+                        candidates=candidates,
                     )
+
+                    # Step 2: Try another time same day
+                    if r_start is None:
+                        day_start = to_datetime(occurrence_date, time.min)
+                        day_end   = to_datetime(occurrence_date, time.max)
+
+                        event_for_day = event.copy()
+                        event_for_day["date_start"] = occurrence_date
+                        event_for_day["date_end"]   = occurrence_date
+
+                        candidates = _form_candidates(
+                            busy_slots=current_busy,
+                            window_start=day_start,
+                            window_end=day_end,
+                            event=event_for_day,
+                            preferences=chunk_preferences,
+                        )
+
+                        r_start, _ = schedule_single_event(
+                            event=event_for_day,
+                            chunk_minutes=chunk_minutes,
+                            current_busy=current_busy,
+                            scheduled_events=scheduled_events,
+                            candidates=candidates,
+                        )
 
                     # Step 3: Try same week any time
                     if r_start is None:
-                        week_end_date = occurrence_date + timedelta(days=6)
-                        week_start_dt = day_start
-                        week_end_dt   = to_datetime(week_end_date, time.max)
+                        # Split week: original occurrence_date +- 3 days
+                        week_start_date = occurrence_date - timedelta(days=3)
+                        week_end_date = occurrence_date + timedelta(days=3)
+                        week_start = to_datetime(week_start_date, time.min)
+                        week_end   = to_datetime(week_end_date, time.max)
 
                         event_for_week = event.copy()
-                        event_for_week["date_start"] = occurrence_date
+                        event_for_week["date_start"] = week_start_date
                         event_for_week["date_end"]   = week_end_date
 
-                        r_start, r_end = schedule_single_event(
+                        candidates = _form_candidates(
+                            busy_slots=current_busy,
+                            window_start=week_start,
+                            window_end=week_end,
+                            event=event_for_week,
+                            preferences=chunk_preferences,
+                        )
+
+                        r_start, _ = schedule_single_event(
                             event=event_for_week,
                             chunk_minutes=chunk_minutes,
                             current_busy=current_busy,
                             scheduled_events=scheduled_events,
-                            window_start=window_start,
-                            window_end=window_end,
-                            range_start=week_start_dt,
-                            range_end=week_end_dt,
+                            candidates=candidates,
                         )
 
                         if r_start is None:
@@ -696,3 +662,58 @@ def schedule_events(
     logger.info("schedule_events: done scheduled=%d (incl. unscheduled placeholders=%d)",
                 sum(1 for e in scheduled_events if e.get("start")), len(scheduled_events))  # LOG
     return scheduled_events
+
+
+def _form_candidates(busy_slots, window_start, window_end, event, preferences):
+    """
+    Helper function to form candidate windows for an event within free slots.
+    Takes busy slots, window start/end, event details, and user preferences.
+    Returns a list of candidate (start, end) tuples.
+    """
+    local_tz = preferences.get("local_tz", get_current_timezone())
+
+    # Convert dates → localized datetimes correctly
+    if isinstance(window_start, date) and not isinstance(window_start, datetime):
+        window_start = datetime.combine(window_start, time.min).replace(tzinfo=local_tz)
+    else:
+        window_start = window_start.astimezone(local_tz)
+
+    if isinstance(window_end, date) and not isinstance(window_end, datetime):
+        window_end = datetime.combine(window_end, time.max).replace(tzinfo=local_tz)
+    else:
+        window_end = window_end.astimezone(local_tz)
+
+    # Normalize busy slots into the same tz
+    busy_slots = [(s.astimezone(local_tz), e.astimezone(local_tz)) for s, e in busy_slots]
+
+    # Compute free slots in local time
+    free_slots = invert_slots(
+        merge_busy_slots(busy_slots),
+        window_start,
+        window_end
+    )
+
+    candidates = []
+    for free_s, free_e in free_slots:
+        for cand in generate_candidate_windows_for_event(
+            event,
+            free_s,
+            free_e,
+            wake_time=preferences.get("wake_time"),
+            bed_time=preferences.get("bed_time"),
+            local_tz=local_tz
+        ):
+            if not preferences.get("blackout_days") or cand[0].date().weekday() not in preferences["blackout_days"]:
+                candidates.append(cand)
+
+    # Sort using local time
+    if preferences.get("time_of_day_ranks"):
+        candidates = score_and_sort_candidates(
+            candidates,
+            preferences["time_of_day_ranks"],
+            local_tz
+        )
+    else:
+        candidates.sort(key=lambda x: x[0])
+
+    return candidates

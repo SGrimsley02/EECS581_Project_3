@@ -4,7 +4,7 @@ Description: JavaScript code to initialize and configure the FullCalendar instan
                 for displaying scheduled events in the calendar view.
 Authors: Kiara Grimsley
 Created: November 18, 2025
-Last Modified: November 18, 2025
+Last Modified: November 26, 2025
 */
 
 document.addEventListener("DOMContentLoaded", function() {
@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const initial_date = calendarEl.dataset.initialDate;
 
     let eventId = null; // Event id for deletion and editing
+    let lastViewType = "dayGridMonth"; // Track last view type to reset to today's date on view change
 
     const calendar = new FullCalendar.Calendar(calendarEl, {
         // Documentation: https://fullcalendar.io/docs
@@ -26,7 +27,8 @@ document.addEventListener("DOMContentLoaded", function() {
         events: "/events/", // JSON event feed from Django
         editable: true,
         selectable: true,
-        // Event Handlers
+        eventResizableFromStart: true,
+        // Calendar Hooks
         eventClick: function(info) { // Handler for clicking on an event
             // Get event details
             const eventObj = info.event;
@@ -57,13 +59,74 @@ document.addEventListener("DOMContentLoaded", function() {
 
         },
         eventDrop: function(info) { // Handler for dragging & dropping an event
-            // TODO: Allow user to drag and drop events to reschedule
-            alert("Event rescheduling is not yet implemented.");
+            const eventObj = info.event;
+            eventId = eventObj.id;
+
+            const payload = { // Event details
+                title: eventObj.title,
+                description: eventObj.extendedProps.description || "",
+                start: eventObj.start.toISOString(),
+                end: eventObj.end ? eventObj.end.toISOString() : null,
+                event_type: eventObj.extendedProps.event_type || "",
+            }
+            // Edit request to server
+            const url = window.EDIT_EVENT_URL.replace("EVENT_ID_PLACEHOLDER", eventId);
+            fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCookie("csrftoken"),
+                },
+                body: JSON.stringify(payload),
+            })
+            .then(res => res.json())
+            .then(() => {
+                calendar.refetchEvents();
+                document.getElementById("modal-overlay").style.display = "none";
+            })
+            .catch(error => {
+                alert("Error rescheduling event.");
+                console.error("Error rescheduling event:", error);
+                info.revert(); // Revert the change
+            });
         },
         eventResize: function(info) { // Handler for resizing an event
-            // TODO: Allow user to resize events to change duration
-            alert("Event resizing is not yet implemented.");
-        }
+            const eventObj = info.event;
+            eventId = eventObj.id;
+            const payload = { // Event details
+                title: eventObj.title,
+                description: eventObj.extendedProps.description || "",
+                start: eventObj.start.toISOString(),
+                end: eventObj.end ? eventObj.end.toISOString() : null,
+                event_type: eventObj.extendedProps.event_type || "",
+            }
+            // Edit request to server
+            const url = window.EDIT_EVENT_URL.replace("EVENT_ID_PLACEHOLDER", eventId);
+            fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCookie("csrftoken"),
+                },
+                body: JSON.stringify(payload),
+            })
+            .then(res => res.json())
+            .then(() => {
+                calendar.refetchEvents();
+                document.getElementById("modal-overlay").style.display = "none";
+            })
+            .catch(error => {
+                alert("Error resizing event.");
+                console.error("Error resizing event:", error);
+                info.revert(); // Revert the change
+            });
+        },
+        datesSet: function(info) { // Handler for today's date on view change
+            if (info.view.type !== lastViewType) {
+                calendar.gotoDate(new Date());
+            }
+            lastViewType = info.view.type;
+        },
     });
 
     calendar.render();
@@ -77,7 +140,6 @@ document.addEventListener("DOMContentLoaded", function() {
     document.getElementById("delete-event-button").addEventListener("click", function() {
         if (!eventId) return;
 
-        //alert("Deleting event... event ID: " + eventId);
         const url = window.DELETE_EVENT_URL.replace("EVENT_ID_PLACEHOLDER", eventId);
         console.log("Delete URL: " + url);
 

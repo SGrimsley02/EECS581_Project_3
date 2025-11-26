@@ -1,10 +1,10 @@
 '''
 Name: apps/scheduler/views.py
 Description: Views for handling scheduler functionality and the
-                study preferences form.
-Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan, Reeny Huang, Hart Nurnberg
+                study preferences form, stats page, etc.
+Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan, Reeny Huang, Hart Nurnberg, Lauren D'Souza
 Created: October 26, 2025
-Last Modified: November 22, 2025
+Last Modified: November 26, 2025
 '''
 import logging
 
@@ -87,6 +87,7 @@ def upload_ics(request):
             try:
                 file_path = default_storage.save(ics_file.name, ics_file) # Save file to default storage
                 events = import_ics(default_storage.path(file_path)) # Process the uploaded ICS file
+                default_storage.delete(file_path) # Clean up uploaded file after processing
                 request.session[SESSION_IMPORTED_EVENTS] = events # Store events in session for later use
                 request.session[SESSION_FILE_PATH] = file_path # Store file path in session
                 request.session[SESSION_SCHEDULE_UPDATE] = True # Mark schedule for update
@@ -213,10 +214,11 @@ def view_calendar(request):
         request.session[SESSION_EVENT_REQUESTS] = None # Clear event requests
         request.session[SESSION_SCHEDULE_UPDATE] = False # Reset update flag
         request.session.modified = True # Ensure session is saved
+        _save_scheduled_events_to_db(scheduled_events, calendar)
 
     logger.info("view_calendar: total events to display/export: %d", len(scheduled_events))
 
-    # ICS Export
+    # ICS Export, Undo, Redo button handling
     if request.method == 'POST':
         action = request.POST.get("action", "export")
 
@@ -270,10 +272,6 @@ def view_calendar(request):
             resp['Content-Disposition'] = 'attachment; filename="ScheduledCalendar.ics"'
             return resp
 
-    # GET: recompute latest lists & preview
-
-
-
     # flags for template (to disable buttons)
     undo_available = bool(request.session.get(SESSION_UNDO_STACK))
     redo_available = bool(request.session.get(SESSION_REDO_STACK))
@@ -295,9 +293,8 @@ def view_calendar(request):
         'debug_events': scheduled_events,
         'initial_date': f"{year:04d}-{month:02d}-01",
         'events': scheduled_events,
-        'preview_tasks': None,
-        'imported_events': None,
-        'event_requests': None,
+        'imported_events': imported_events or None,
+        'event_requests': event_requests or None,
         'undo_available': undo_available,
         'redo_available': redo_available,
         'event_type_choices': EventType.values,
@@ -315,7 +312,6 @@ def event_feed(request):
     # Convert your stored events into FullCalendar format
     formatted = []
     for ev in scheduled_events:
-        print("TIME:", ev.get("start"), ev.get("end"))
         start_time = _make_aware_dt(ev.get("start"))
         end_time = _make_aware_dt(ev.get("end"))
         formatted.append({
@@ -604,7 +600,7 @@ def _db_events_to_session(calendar):
 
 def _save_scheduled_events_to_db(all_events, calendar):
     """
-    Saves FINAL scheduled events (imported + scheduled tasks) into DB.
+    Saves final scheduled events (imported + scheduled tasks) into DB.
     Clears the old calendar contents first to ensure no duplicates.
     """
     calendar.clear_events()

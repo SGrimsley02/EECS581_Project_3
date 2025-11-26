@@ -3,7 +3,7 @@ Name: apps/scheduler/urls.py
 Description: URL configurations for the scheduler.
 Authors: Kiara Grimsley, Audrey Pan
 Created: October 26, 2025
-Last Modified: November 22, 2025
+Last Modified: November 26, 2025
 '''
 
 from django.urls import path, include

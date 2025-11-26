@@ -1,9 +1,9 @@
 '''
 Name: icsImportExport.py
 Description: Module for importing and exporting calendar events in ICS format.
-Authors: Kiara Grimsley, Audrey Pan, Ella Nguyen
+Authors: Kiara Grimsley, Audrey Pan, Ella Nguyen, Lauren D'Souza
 Created: October 26, 2025
-Last Modified: November 16, 2025
+Last Modified: November 26, 2025
 Functions: export_ics(events, file_path)
             import_ics(file_path)
 '''
