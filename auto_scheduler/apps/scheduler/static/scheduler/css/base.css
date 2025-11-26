@@ -1,10 +1,45 @@
 /*
     Name: apps/scheduler/static/scheduler/css/base.css
     Description: CSS styles for the standard base layout.
-    Authors: Kiara Grimsley, Audrey Pan
+    Authors: Kiara Grimsley, Audrey Pan, Reeny Huang
     Created: November 18, 2025
-    Last Modified: November 22, 2025
+    Last Modified: November 26, 2025
 */
+
+:root {
+--bg: #231942;
+--purple: #5e548e;
+--pink: #e0b1cb;
+--lavender: #9f86c0;
+--pink2: #be95c4;
+--white: #ffffff;
+--red: #c1121f;
+--clear-bg: rgba(10, 6, 26, 0.7);
+--border-soft: rgba(255,255,255,0.12);
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at 10% 20%, #3b1c5a 0, transparent 55%),
+        radial-gradient(circle at 80% 0, #9f86c0 0, transparent 55%),
+        radial-gradient(circle at 50% 80%, #e0b1cb 0, transparent 55%),
+        var(--bg);
+    color: var(--white);
+    font-family: "Inter", sans-serif;
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+        radial-gradient(circle, rgba(255,255,255,0.18) 0.5px, transparent 0.5px);
+    background-size: 3px 3px;
+    opacity: 0.16;
+}
 
 .messages {
     margin: 1rem 0;
@@ -14,13 +49,18 @@
     padding: 10px 15px;
     border-radius: 6px;
     margin-bottom: 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: blur(4px);
 }
+
 .message.prefs-bold-red {
-    color: #b91c1c; /* Red-700 */
-    background: #fee2e2; /* Red-100 */
-    border: 1px solid #fecaca; /* Red-200 */
-    font-weight: 700; /* Bold */
+    color: var(--red);
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    font-weight: 700;
 }
+
 .rank-row {
 margin-bottom: 8px;
 display: flex;
@@ -30,17 +70,18 @@ gap: 10px;
 
 .btn-update {
     font-weight: bold;
-    color: #003366;
+    color: var(--purple);
 }
 
 .btn-dismiss {
-    color: #666;
+    color: var(--lavender);
 }
 
 .message.prefs-recap {
-    border-left: 4px solid #003366;
+    border-left: 4px solid var(--purple);
     padding-left: 10px;
 }
+
 .stats-table-wrapper {
     margin: 1rem auto;
     width: 60%;
@@ -51,19 +92,83 @@ gap: 10px;
 .stats-table {
     border-collapse: collapse;
     width: 100%;
-    background: #fff;
+    background: var(--purple);
     font-size: 1rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--pink);
+    color: var(--white);
 }
 
 .stats-table th,
 .stats-table td {
     padding: 8px 14px;
     text-align: left;
-    border: 1px solid #ccc;
+    border: 1px solid var(--pink);
 }
 
 .stats-table th {
-    background: #f2f2f2;
+    background: var(--pink2);
     font-weight: 700;
+    color: var(--purple);
+}
+
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 2rem;
+    background: rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(6px);
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: var(--pink2);
+    text-shadow: 0 0 8px rgba(255,255,255,0.2);
+}
+
+.nav-center-wrapper {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+}
+
+nav {
+    display: flex;
+    gap: 1.5rem;
+    font-weight: 600;
+}
+
+nav a {
+    color: var(--white);
+    text-decoration: none;
+    transition: 0.2s ease;
+}
+
+nav a:hover {
+    color: var(--pink);
+    text-shadow: 0 0 3px var(--pink);
+}
+
+.nav-left {
+    margin-right: auto;
+}
+
+.nav-right {
+    margin-left: auto;
+}
+
+.nav-right a {
+    color: var(--white);
+    font-size: 1.3rem;
+    font-weight: 600;
+    padding: 0 1.2rem;
+    text-decoration: none;
+}
+
+.nav-right a:hover {
+    color: var(--pink);
+    text-shadow: 0 0 6px var(--pink);
 }
