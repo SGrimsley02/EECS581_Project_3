@@ -149,17 +149,14 @@ def add_events(request):
             # For MVP, we redirect to view/export page; scheduling engine can use these later.
             return redirect("scheduler:view_calendar")
     else:
-        initial = request.session.get(SESSION_EVENT_REQUESTS, [])
+        initial = request.session.get(SESSION_EVENT_REQUESTS) or []
         logger.info("add_events: GET detected; preloading existing event requests")
         formset = EventFormSet(initial=initial, prefix="events")
 
-    # Also pass a quick count of imported events for UX context
-    imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-    length = len(imported_events) if imported_events else 0
     return render(
         request,
         "add_events.html",
-        {"formset": formset, "imported_count": length}
+        {"formset": formset}
     )
 
 @login_required
@@ -171,16 +168,14 @@ def view_calendar(request):
     check_preferences_recap(request)
 
     # Get scheduled events from session, or schedule if needed
-    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
+    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS) or []
     if not scheduled_events or request.session.get(SESSION_SCHEDULE_UPDATE, True):
         logger.info("view_calendar: reschedule needed; scheduling now")
         # Get imported events from DB + session
         calendar = request.user.calendars.first()
         db_events = _db_events_to_session(calendar) if calendar else []
         logger.debug("Found DB events: %d", len(db_events))
-        session_events = request.session.get(SESSION_IMPORTED_EVENTS)
-        if session_events is None:
-            session_events = []
+        session_events = request.session.get(SESSION_IMPORTED_EVENTS) or []
 
         # TODO: Improve deduplication logic, extremely rudimentary rn
         seen = set()
@@ -204,10 +199,10 @@ def view_calendar(request):
             if uid not in seen and title_key not in seen:
                 imported_events.append(ev)
 
-        event_requests = request.session.get(SESSION_EVENT_REQUESTS, [])
+        event_requests = request.session.get(SESSION_EVENT_REQUESTS) or []
 
         # Get preferences for scheduling
-        preferences = request.session.get(SESSION_PREFERENCES, {})
+        preferences = request.session.get(SESSION_PREFERENCES) or {}
 
         # Schedule any events
         logger.info("view_calendar: scheduling %d events against %d imported events",
@@ -225,103 +220,10 @@ def view_calendar(request):
     if request.method == 'POST':
         action = request.POST.get("action", "export")
 
-        # Edit event
-        if action == "edit":
-            # snapshot for undo
-            _push_undo(request)
-
-            edit_type = request.POST.get("edit_type")
-            edit_index = request.POST.get("edit_index")
-            try:
-                idx = int(edit_index)
-            except (TypeError, ValueError):
-                idx = -1
-
-            # fields submitted from the form
-            new_title = request.POST.get("new_title", "").strip()
-            new_description = request.POST.get("new_description", "").strip()
-            new_event_type = request.POST.get("new_event_type", "").strip()
-
-            imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-            event_requests = request.session.get(SESSION_EVENT_REQUESTS, [])
-
-            if edit_type == "imported" and 0 <= idx < len(imported_events):
-                logger.info("view_calendar: editing imported event at index %d", idx)
-                ev = imported_events[idx]
-                if new_title:
-                    # update common keys used elsewhere
-                    ev["name"] = new_title
-                    ev["title"] = new_title
-                # allow clearing description if empty string provided
-                if new_description:
-                    ev["description"] = new_description
-                else:
-                    ev.pop("description", None)
-                if new_event_type:
-                    ev["event_type"] = new_event_type
-                else:
-                    ev.pop("event_type", None)
-
-                imported_events[idx] = ev
-                request.session[SESSION_IMPORTED_EVENTS] = imported_events
-
-            elif edit_type == "task" and 0 <= idx < len(event_requests):
-                logger.info("view_calendar: editing task request at index %d", idx)
-                t = event_requests[idx]
-                if new_title:
-                    t["title"] = new_title
-                if new_description:
-                    t["description"] = new_description
-                else:
-                    t.pop("description", None)
-                if new_event_type:
-                    t["event_type"] = new_event_type
-                else:
-                    t.pop("event_type", None)
-
-                event_requests[idx] = t
-                request.session[SESSION_EVENT_REQUESTS] = event_requests
-
-            # mark schedule stale and persist session
-            request.session[SESSION_SCHEDULE_UPDATE] = True
-            request.session.pop(SESSION_SCHEDULED_EVENTS, None)
-            request.session.modified = True
-
-            return redirect("scheduler:view_calendar")
-
-        # Delete Event
-        if action == "delete":
-            _push_undo(request)  # snapshot before the change
-
-            delete_type  = request.POST.get("delete_type")
-            delete_index = request.POST.get("delete_index")
-
-            try:
-                idx = int(delete_index)
-            except (TypeError, ValueError):
-                idx = -1
-
-            imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-            event_requests   = request.session.get(SESSION_EVENT_REQUESTS, [])
-
-            if delete_type == "imported" and 0 <= idx < len(imported_events):
-                logger.info("view_calendar: deleting imported event at index %d", idx)
-                imported_events.pop(idx)
-                request.session[SESSION_IMPORTED_EVENTS] = imported_events
-            elif delete_type == "task" and 0 <= idx < len(event_requests):
-                logger.info("view_calendar: deleting task request at index %d", idx)
-                event_requests.pop(idx)
-                request.session[SESSION_EVENT_REQUESTS] = event_requests
-
-            request.session.modified = True
-            request.session[SESSION_SCHEDULE_UPDATE] = True
-            request.session.pop(SESSION_SCHEDULED_EVENTS, None)
-            return redirect("scheduler:view_calendar")
-
         # Undo
-        elif action == "undo":
-            undo_stack = request.session.get(SESSION_UNDO_STACK, [])
-            redo_stack = request.session.get(SESSION_REDO_STACK, [])
+        if action == "undo":
+            undo_stack = request.session.get(SESSION_UNDO_STACK) or []
+            redo_stack = request.session.get(SESSION_REDO_STACK) or []
 
             if undo_stack:
                 logger.info("view_calendar: undo requested")
@@ -336,8 +238,8 @@ def view_calendar(request):
 
         # REDO
         elif action == "redo":
-            undo_stack = request.session.get(SESSION_UNDO_STACK, [])
-            redo_stack = request.session.get(SESSION_REDO_STACK, [])
+            undo_stack = request.session.get(SESSION_UNDO_STACK) or []
+            redo_stack = request.session.get(SESSION_REDO_STACK) or []
 
             if redo_stack:
                 logger.info("view_calendar: redo requested")
@@ -408,7 +310,7 @@ def event_feed(request):
     Provides scheduled events in JSON format for FullCalendar.
     Gets rendered by view_calendar template.
     '''
-    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
+    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS) or []
 
     # Convert your stored events into FullCalendar format
     formatted = []
@@ -496,7 +398,7 @@ def event_stats(request):
     """
     check_preferences_recap(request)
 
-    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
+    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS) or []
 
     # If no events at all, show empty state but still include filter fields
     start_str = request.GET.get("start", "")
@@ -568,7 +470,7 @@ def delete_event(request, event_id):
         if event_id is not None:
             _push_undo(request)  # snapshot before the change
 
-            scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
+            scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS) or []
             updated_events = [ev for ev in scheduled_events if str(ev.get("uid")) != str(event_id)]
             request.session[SESSION_SCHEDULED_EVENTS] = updated_events
             request.session.modified = True
@@ -588,7 +490,7 @@ def edit_event(request, event_id):
             new_end = _normalize_timestamp(data.get("end", "").strip())
         except (json.JSONDecodeError, KeyError):
             return JsonResponse({'status': 'failed', 'error': 'Invalid data'}, status=400)
-        scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
+        scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS) or []
         for ev in scheduled_events:
             if str(ev.get("uid")) == str(event_id):
                 if new_title:
@@ -654,26 +556,21 @@ def check_preferences_recap(request):
 
 def _get_current_state(request):
     return {
-        "imported_events": copy.deepcopy(
-            request.session.get(SESSION_IMPORTED_EVENTS, [])
-        ),
-        "event_requests": copy.deepcopy(
-            request.session.get(SESSION_EVENT_REQUESTS, [])
+        "scheduled_events": copy.deepcopy(
+            request.session.get(SESSION_SCHEDULED_EVENTS) or []
         ),
     }
 
 def _apply_state(request, state):
-    request.session[SESSION_IMPORTED_EVENTS] = state.get("imported_events", [])
-    request.session[SESSION_EVENT_REQUESTS] = state.get("event_requests", [])
+    request.session[SESSION_SCHEDULED_EVENTS] = state.get("scheduled_events") or []
     request.session[SESSION_SCHEDULE_UPDATE] = True
-    request.session.pop(SESSION_SCHEDULED_EVENTS, None)
     request.session.modified = True
 
 def _push_undo(request):
-    undo_stack = request.session.get(SESSION_UNDO_STACK, [])
+    undo_stack = request.session.get(SESSION_UNDO_STACK) or []
     undo_stack.append(_get_current_state(request))
     # cap history to last N steps
-    if len(undo_stack) > 20:
+    if len(undo_stack) > 10:
         undo_stack.pop(0)
     request.session[SESSION_UNDO_STACK] = undo_stack
     # any new edit clears redo history
