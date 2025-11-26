@@ -35,10 +35,21 @@ document.addEventListener("DOMContentLoaded", function() {
 
             // Display detailed event
             document.getElementById("modal-event-title").innerText = eventObj.title;
-            document.getElementById("modal-event-type").innerText = props.event_type || "N/A";
-            document.getElementById("modal-event-start").innerText = eventObj.start.toLocaleString();
-            document.getElementById("modal-event-end").innerText = eventObj.end ? eventObj.end.toLocaleString() : "N/A";
-            document.getElementById("modal-event-description").innerText = props.description || "No description.";
+            document.getElementById("modal-event-description").innerText = props.description || " ";
+            document.getElementById("modal-event-start").value = toDatetimeLocal(eventObj.start);
+            document.getElementById("modal-event-end").value = eventObj.end ? toDatetimeLocal(eventObj.end) : "";
+
+
+            document.getElementById("modal-event-type").innerHTML = "";
+            EVENT_TYPES.forEach(element => {
+                const opt = document.createElement("option");
+                opt.value = element;
+                opt.textContent = element;
+                if (props.event_type === element) {
+                    opt.selected = true;
+                }
+                document.getElementById("modal-event-type").appendChild(opt);
+            });
 
             // Show modal
             document.getElementById("modal-overlay").style.display = "flex";
@@ -104,6 +115,36 @@ document.addEventListener("DOMContentLoaded", function() {
             alert("Error deleting event.");
         });
     });
+
+    // Save event edits handler
+    document.getElementById("save-event-button").addEventListener("click", function() {
+        if (!eventId) return;
+
+        // Event data
+        const payload = {
+            title: document.getElementById("modal-event-title").innerText.trim(),
+            description: document.getElementById("modal-event-description").innerText.trim(),
+            start: document.getElementById("modal-event-start").value,
+            end: document.getElementById("modal-event-end").value,
+            event_type: document.getElementById("modal-event-type").value,
+        };
+
+        // Send update request to server
+        const url = window.EDIT_EVENT_URL.replace("EVENT_ID_PLACEHOLDER", eventId);
+        fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie("csrftoken"),
+            },
+            body: JSON.stringify(payload),
+        })
+        .then(res => res.json())
+        .then(() => {
+            calendar.refetchEvents();
+            document.getElementById("modal-overlay").style.display = "none";
+        });
+    });
 });
 
 
@@ -122,4 +163,10 @@ function getCookie(name) {
         }
     }
     return cookieValue;
+}
+
+// Helper function to convert Date to datetime-local string
+function toDatetimeLocal(date) {
+    const dt = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+    return dt.toISOString().slice(0,16);
 }

@@ -78,3 +78,10 @@
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
+.editable {
+    border: 1px solid #ccc;
+    padding: 6px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    min-height: 30px;
+}

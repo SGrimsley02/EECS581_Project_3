@@ -17,6 +17,8 @@ from django.forms import formset_factory
 from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.decorators import login_required
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import make_aware, get_current_timezone, is_naive, localtime
 
 from .forms import ICSUploadForm, EventForm, StudyPreferencesForm
 
@@ -148,15 +150,16 @@ def add_events(request):
             return redirect("scheduler:view_calendar")
     else:
         initial = request.session.get(SESSION_EVENT_REQUESTS, [])
-        logger.info("add_events: GET detected; preloading %d existing event requests", len(initial))
+        logger.info("add_events: GET detected; preloading existing event requests")
         formset = EventFormSet(initial=initial, prefix="events")
 
     # Also pass a quick count of imported events for UX context
     imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
+    length = len(imported_events) if imported_events else 0
     return render(
         request,
         "add_events.html",
-        {"formset": formset, "imported_count": len(imported_events)}
+        {"formset": formset, "imported_count": length}
     )
 
 @login_required
@@ -175,7 +178,9 @@ def view_calendar(request):
         calendar = request.user.calendars.first()
         db_events = _db_events_to_session(calendar) if calendar else []
         logger.debug("Found DB events: %d", len(db_events))
-        session_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
+        session_events = request.session.get(SESSION_IMPORTED_EVENTS)
+        if session_events is None:
+            session_events = []
 
         # TODO: Improve deduplication logic, extremely rudimentary rn
         seen = set()
@@ -408,11 +413,14 @@ def event_feed(request):
     # Convert your stored events into FullCalendar format
     formatted = []
     for ev in scheduled_events:
+        print("TIME:", ev.get("start"), ev.get("end"))
+        start_time = _make_aware_dt(ev.get("start"))
+        end_time = _make_aware_dt(ev.get("end"))
         formatted.append({
             "id": ev.get("id", None) or ev.get("uid", None),
             "title": ev.get("name") or ev.get("title") or "(No Title)",
-            "start": ev.get("start"),
-            "end": ev.get("end"),
+            "start": start_time.isoformat() if start_time else None,
+            "end": end_time.isoformat() if end_time else None,
             "allDay": False,
             "className": [f"etype-{ev.get('event_type', 'other').lower().replace(' ', '-')}"] if ev.get("event_type") else [],
             "extendedProps": ev,  # keep all original data
@@ -568,6 +576,42 @@ def delete_event(request, event_id):
             return JsonResponse({'status': 'success'})
     return JsonResponse({'status': 'failed'}, status=400)
 
+def edit_event(request, event_id):
+    if request.method == 'POST':
+        _push_undo(request)  # snapshot before the change
+        try:
+            data = json.loads(request.body)
+            new_title = data.get("title", "").strip()
+            new_description = data.get("description", "").strip()
+            new_event_type = data.get("event_type", "").strip()
+            new_start = _normalize_timestamp(data.get("start", "").strip())
+            new_end = _normalize_timestamp(data.get("end", "").strip())
+        except (json.JSONDecodeError, KeyError):
+            return JsonResponse({'status': 'failed', 'error': 'Invalid data'}, status=400)
+        scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
+        for ev in scheduled_events:
+            if str(ev.get("uid")) == str(event_id):
+                if new_title:
+                    ev["title"] = new_title
+                    ev["name"] = new_title
+                if new_description:
+                    ev["description"] = new_description
+                else:
+                    ev.pop("description", None)
+                if new_event_type:
+                    ev["event_type"] = new_event_type
+                else:
+                    ev.pop("event_type", None)
+                if new_start:
+                    ev["start"] = new_start
+                if new_end:
+                    ev["end"] = new_end
+                break
+        request.session[SESSION_SCHEDULED_EVENTS] = scheduled_events
+        request.session.modified = True
+        return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'failed'}, status=400)
+
 
 # ============================================================
 #  MESSAGE
@@ -682,3 +726,43 @@ def _save_scheduled_events_to_db(all_events, calendar):
             location=ev.get("location"),
             alarm=ev.get("alarm", False),
         )
+
+def _normalize_timestamp(datetime_str):
+    """Parse times from JS and ensure it is timezone-aware in UTC."""
+    if not datetime_str:
+        return None
+
+    dt = parse_datetime(datetime_str)
+    if not dt:
+        return datetime_str  # fallback, keep original
+
+    # If the parsed value is naive (no tz offset), treat it as server-local
+    if is_naive(dt):
+        dt = make_aware(dt, get_current_timezone())
+
+    # store as UTC to keep consistent everywhere
+    return dt.astimezone(pytz.UTC).isoformat()
+
+def _make_aware_dt(dt):
+    """Ensure a datetime is timezone-aware in UTC."""
+    if dt is None:
+        return None
+
+    tz_local = get_current_timezone()
+    if isinstance(dt, datetime):
+        # Localize naive datetimes to server local tz, then convert to UTC
+        if is_naive(dt):
+            aware = make_aware(dt, tz_local)
+        else:
+            aware = dt
+        return aware.astimezone(pytz.UTC)
+
+    # Parse string → datetime
+    parsed = parse_datetime(dt)
+    if parsed is None:
+        return None
+
+    if is_naive(parsed):
+        parsed = make_aware(parsed, tz_local)
+
+    return parsed.astimezone(pytz.UTC)
