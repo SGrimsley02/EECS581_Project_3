@@ -125,7 +125,7 @@ header h1 {
     margin: 0;
     font-size: 1.7rem;
     font-weight: 700;
-    color: var(--pink2);
+    color: var(--pink);
     text-shadow: 0 0 8px rgba(255,255,255,0.2);
 }
 
@@ -171,4 +171,92 @@ nav a:hover {
 .nav-right a:hover {
     color: var(--pink);
     text-shadow: 0 0 6px var(--pink);
+}
+
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 120px);
+    padding: 1rem;
+}
+
+.auth-card-simple {
+    width: 100%;
+    max-width: 400px;
+    padding: 2rem 2.2rem;
+    border-radius: 12px;
+    background: rgba(20, 15, 35, 0.8);
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(10px);
+}
+
+.auth-card-simple h2 {
+    margin: 0 0 1.4rem;
+    text-align: center;
+    font-size: 1.5rem;
+    color: var(--pink2);
+}
+
+.auth-card-simple form p {
+    margin: 0 0 1rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.auth-card-simple label {
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+    color: var(--pink);
+    letter-spacing: 0.3px;
+}
+
+.auth-card-simple input {
+    width: 100%;
+    max-width: 100%;
+    padding: 0.55rem;
+    margin-bottom: 0.4rem;
+    border-radius: 8px;
+    border: 1px solid var(--pink);
+    background: rgba(50, 40, 78, 0.9);
+    color: var(--white);
+    outline: none;
+    box-sizing: border-box;
+}
+
+.auth-card-simple input:focus {
+    border-color: var(--pink2);
+    box-shadow: 0 0 6px var(--pink2);
+}
+
+.btn-auth {
+    width: 100%;
+    padding: 0.65rem;
+    margin-top: 0.4rem;
+    border: none;
+    border-radius: 6px;
+    background: var(--pink2);
+    color: #1d1230;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-auth:hover {
+    background: var(--pink);
+}
+
+.auth-alt {
+    margin-top: 1rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--pink2);
+}
+
+.auth-alt a {
+    color: var(--pink);
+    text-decoration: none;
+}
+
+.auth-alt a:hover {
+    text-decoration: underline;
 }
