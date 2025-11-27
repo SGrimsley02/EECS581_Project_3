@@ -174,6 +174,12 @@ def view_calendar(request):
         logger.info("view_calendar: reschedule needed; scheduling now")
         # Get imported events from DB + session
         calendar = request.user.calendars.first()
+        if not calendar:
+            calendar = Calendar.objects.create(
+                owner=request.user,
+                name="Default",
+                description="Auto-created calendar"
+            )
         db_events = _db_events_to_session(calendar) if calendar else []
         logger.debug("Found DB events: %d", len(db_events))
         session_events = request.session.get(SESSION_IMPORTED_EVENTS) or []
