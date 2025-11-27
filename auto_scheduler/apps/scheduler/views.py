@@ -183,15 +183,16 @@ def view_calendar(request):
         imported_events = []
         for ev in session_events: # Deduplicate, prefer session (live) events
             uid = ev.get("uid") or ev.get("id")
-            if uid:
-                seen.add(uid)
+
             title = ev.get("title") or ev.get("name")
             start = ev.get("start") or ev.get("start_time")
             title_key = (title, start)
-            seen.add(title_key) # uid is strong key, this is weak key
 
             if uid not in seen and title_key not in seen:
                 imported_events.append(ev)
+                if uid:
+                    seen.add(uid)
+                seen.add(title_key)
         for ev in db_events: # Deduplicate, db_events come second
             uid = ev.get("uid") or ev.get("id")
             title = ev.get("title") or ev.get("name")
@@ -199,6 +200,9 @@ def view_calendar(request):
             title_key = (title, start)
             if uid not in seen and title_key not in seen:
                 imported_events.append(ev)
+                if uid:
+                    seen.add(uid)
+                seen.add(title_key)
 
         event_requests = request.session.get(SESSION_EVENT_REQUESTS) or []
 
@@ -293,8 +297,6 @@ def view_calendar(request):
         'debug_events': scheduled_events,
         'initial_date': f"{year:04d}-{month:02d}-01",
         'events': scheduled_events,
-        'imported_events': imported_events or None,
-        'event_requests': event_requests or None,
         'undo_available': undo_available,
         'redo_available': redo_available,
         'event_type_choices': EventType.values,
