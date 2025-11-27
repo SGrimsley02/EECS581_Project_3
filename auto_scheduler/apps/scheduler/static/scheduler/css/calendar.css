@@ -14,30 +14,36 @@
 .fc-event.etype-work {
     background-color: #a6c8ff !important;
     border-color: #083994 !important;
+    color: black !important;
 }
 
 .fc-event.etype-study-session {
     background-color: #ffa8a5 !important;
     border-color: #9c1c17 !important;
+    color: black !important;
 }
 
 .fc-event.etype-class {
     background-color: #acffac !important;
     border-color: #227022 !important;
+    color: black !important;
 }
 
 .fc-event.etype-leisure {
     background-color: #fcafff !important;
     border-color: #ef099f !important;
+    color: black !important;
 }
 
 /* Fallback for unknown types */
 .fc-event.etype-other {
     background-color: #c0c0c0 !important;
+    color: black !important;
 }
 
 .fc-event.etype- {
     background-color: #c0c0c0 !important;
+    color: black !important;
 }
 
 
@@ -67,8 +73,9 @@
 }
 
 .modal-event { /* Modal container */
-    background: #fff;
-    padding: 1.5rem;
+    background: var(--white);
+    color: black;
+    padding: 2.2rem;
     border-radius: 8px;
     width: 400px;
     max-width: 80%;
@@ -79,7 +86,8 @@
 }
 
 .editable {
-    border: 1px solid #ccc;
+    background-color: var(--white);
+    border: 1px solid var(--pink2);
     padding: 6px;
     border-radius: 4px;
     margin-bottom: 10px;
