@@ -67,8 +67,9 @@
 }
 
 .modal-event { /* Modal container */
-    background: #fff;
-    padding: 1.5rem;
+    background: var(--white);
+    color: black;
+    padding: 2.2rem;
     border-radius: 8px;
     width: 400px;
     max-width: 80%;
@@ -79,7 +80,8 @@
 }
 
 .editable {
-    border: 1px solid #ccc;
+    background-color: var(--white);
+    border: 1px solid var(--pink2);
     padding: 6px;
     border-radius: 4px;
     margin-bottom: 10px;
