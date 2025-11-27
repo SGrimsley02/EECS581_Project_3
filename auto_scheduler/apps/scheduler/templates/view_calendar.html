@@ -83,47 +83,19 @@
               DEBUG VIEW LISTS
     ------------------------------------>
   {% if False %} <!-- Set True to debug -->
-    <h3>Imported Events (Debug)</h3>
+    <h3>Events (Debug)</h3>
     <ul>
-    {% for event in imported_events %}
-    <li style="margin-bottom: 0.75rem;">
-      <strong>{% firstof event.name event.title "(No Title)" %}</strong>
 
-      {% if event.priority %}
-        <span class="priority-badge priority-{{ event.priority|lower }}">
-          {{ event.priority|title }}
-        </span>
-      {% endif %}
-
-      — {{ event.start }} to {{ event.end }}
-
-          {% if event.description %}
-            <br><small><strong>Description:</strong> {{ event.description }}</small>
-          {% endif %}
-
-      {% if event.event_type %}
-        <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
-      {% endif %}
-      </li>
-    {% empty %}
-      <li>No imported events yet. Please upload a .ics file first.</li>
-    {% endfor %}
-    </ul>
-
-    <hr>
-
-    <!-- TASK REQUESTS (these are the “generated schedule” inputs) -->
-    <h3>Task Requests (to be scheduled)</h3>
     <ul>
-      {% for t in event_requests %}
+      {% for e in debug_events %}
         <li style="margin-bottom: 0.75rem;">
           <strong>{% firstof t.title t.name "(No Title)" %}</strong>
           <span>
             ({{ t.priority|title }}, {{ t.duration_minutes }} min)
           </span>
 
-          {% if t.description %}
-            <br><small><strong>Description:</strong> {{ t.description }}</small>
+          {% if e.description %}
+            <br><small><strong>Description:</strong> {{ e.description }}</small>
           {% endif %}
 
           <!-- EDIT TASK REQUEST -->
@@ -136,16 +108,16 @@
               <input type="hidden" name="edit_index" value="{{ forloop.counter0 }}">
 
               <div>
-                <label>Title: <input type="text" name="new_title" value="{{ t.title }}"></label>
+                <label>Title: <input type="text" name="new_title" value="{{ e.title }}"></label>
               </div>
               <div>
-                <label>Description: <input type="text" name="new_description" value="{{ t.description }}"></label>
+                <label>Description: <input type="text" name="new_description" value="{{ e.description }}"></label>
               </div>
               <div>
                 <label>Type:
                   <select name="new_event_type">
                     {% for etype in event_type_choices %}
-                      <option value="{{ etype }}" {% if t.event_type == etype %}selected{% endif %}>{{ etype }}</option>
+                      <option value="{{ etype }}" {% if e.event_type == etype %}selected{% endif %}>{{ etype }}</option>
                     {% endfor %}
                   </select>
                 </label>
