@@ -1,7 +1,7 @@
 <!--
     Name: apps/scheduler/templates/view_calendar.html
     Description: HTML template extension for the export calendar view page.
-    Authors: Kiara Grimsley, Ella Nguyen, Lauren D'Souza
+    Authors: Kiara Grimsley, Ella Nguyen, Lauren D'Souza, Reeny Huang
     Created: November 7, 2025
     Last Modified: November 26, 2025
 -->
@@ -39,13 +39,14 @@
     <div id="modal-overlay" class="modal-overlay" style="display:none;">
       <div class="modal-event">
         <span id="modal-close" class="close-button">&times;</span>
-
+        <div class="editable-header">Event Title:</div>
         <div class="editable" contenteditable="plaintext-only" id="modal-event-title">(Event Title)</div>
         <ul id="modal-event-details">
           <li><strong>Type:</strong> <select id="modal-event-type"></select></li>
           <li><strong>Start:</strong> <input type="datetime-local" value="" id="modal-event-start"></input></li>
           <li><strong>End:</strong> <input type="datetime-local" value="" id="modal-event-end"></input></li>
         </ul>
+        <div class="editable-header">Description:</div>
         <div class="editable" contenteditable="plaintext-only" id="modal-event-description"></div>
 
         <button id="save-event-button">Save Changes</button>
