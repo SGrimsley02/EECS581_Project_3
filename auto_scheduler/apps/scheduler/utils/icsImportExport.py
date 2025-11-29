@@ -1,9 +1,9 @@
 '''
 Name: icsImportExport.py
 Description: Module for importing and exporting calendar events in ICS format.
-Authors: Kiara Grimsley, Audrey Pan, Ella Nguyen
+Authors: Kiara Grimsley, Audrey Pan, Ella Nguyen, Lauren D'Souza
 Created: October 26, 2025
-Last Modified: November 16, 2025
+Last Modified: November 26, 2025
 Functions: export_ics(events, file_path)
             import_ics(file_path)
 '''
@@ -46,6 +46,7 @@ def export_ics(events): # TODO: modify to export from database
     calendar = Calendar()
     # Add all events to the calendar
     for event in events:
+        event_id = event.get("uid", f"{event.get("name", "no-title")}_{event.get("start", "no-start")}")
         ics_event = Event()
         ics_event.name = event.get("name", "No Title") # Event title, default No Title
         if ics_event.name is None or ics_event.name == "No Title":
@@ -56,6 +57,7 @@ def export_ics(events): # TODO: modify to export from database
         ics_event.end = to_dt(end_raw) # Event end time
         ics_event.description = event.get("description", "") # Event description, default none
         ics_event.location = event.get("location", "") # Event location, default none
+        ics_event.uid = event.get("uid", None) # Event UID, default none
         # If any more fields needed, add them here
 
         calendar.events.add(ics_event)
@@ -91,6 +93,7 @@ def import_ics(file_path): # TODO: modify to import into database
                 getattr(getattr(ics_event, "begin", None), "isoformat", lambda: None)(),
                 getattr(getattr(ics_event, "end", None), "isoformat", lambda: None)(),
             )
+            event_id = ics_event.uid if ics_event.uid is not None else f"{ics_event.name}_{ics_event.begin.isoformat()}"
             event = {
                 "name": ics_event.name,
                 "start": ics_event.begin.astimezone(UTC).isoformat(),
@@ -99,6 +102,7 @@ def import_ics(file_path): # TODO: modify to import into database
                 "location": ics_event.location,
                 "recurrence": next((e.value for e in ics_event.extra if e.name == "RRULE"), None),
                 "event_type": ics_event.categories,
+                "uid": event_id,
                 # If any more fields needed, add them here
             }
             categorize_event(event) # Add category to event
@@ -122,7 +126,7 @@ def categorize_event(event):
     description = event["description"].lower()
     recurrence = event["recurrence"]
     text = f"{name} {description}"
-    
+
 
     if re.search(r"\b(study|review|homework|assignment|exam|project|prep|test|quiz)\b", name + " " + description):
         event["event_type"] = EventType.STUDY.value
@@ -142,7 +146,7 @@ def categorize_event(event):
 
     elif re.search(r"\b(workout|gym|doctor|workout)\b", name + " " + description):
         event["event_type"] = EventType.OTHER.value
-    
+
     elif isinstance(start, datetime) and isinstance(end, datetime):
         start_hour = start.time().hour
         duration_hours = ((end - start).seconds / 3600) if end else None
@@ -153,7 +157,7 @@ def categorize_event(event):
 
         # Likely work: between 8am-10pm, recurring, 2hr+
         elif 8 <= start_hour <= 22 and recurrence and duration_hours and duration_hours >= 2:
-            event["event_type"] = EventType.WORK.value   
+            event["event_type"] = EventType.WORK.value
 
     # Priority Heuristics
     # Only set if not already set elsewhere (e.g., user-edited later)

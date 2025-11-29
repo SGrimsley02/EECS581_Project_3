@@ -5,9 +5,9 @@
                 All other templates extend this one.
                 Includes global navigation, message rendering, and
                 light styling for layout and alerts.
-    Authors: Kiara Grimsley, Audrey Pan
+    Authors: Kiara Grimsley, Audrey Pan, Reeny Huang
     Created: November 7, 2025
-    Last Modified: November 22, 2025
+    Last Modified: November 26, 2025
 -->
 {% load static %}
 <!-- Metadata -->
@@ -21,17 +21,28 @@
 
 <body>
     <header>
-        <h1>Auto Scheduler</h1>
-        <nav>
-            <a href="{% url 'scheduler:preferences' %}">Preferences</a> |
-            <a href="{% url 'scheduler:upload_ics' %}">Upload</a> |
-            <a href="{% url 'scheduler:add_events' %}">Add Events</a> |
-            <a href="{% url 'scheduler:view_calendar' %}">Export</a> |
-            <a href="{% url 'scheduler:event_stats' %}">Stats</a> | 
-            <a href="{% url 'scheduler:logout' %}">Log Out</a>
-        </nav>
+        <div class="nav-left">
+            <h1>Auto Scheduler</h1>
+        </div>
+        <div class="nav-center-wrapper">
+            <nav>
+                <a href="{% url 'scheduler:preferences' %}">Preferences</a>
+                <a href="{% url 'scheduler:upload_ics' %}">Upload</a>
+                <a href="{% url 'scheduler:add_events' %}">Add Events</a>
+                <a href="{% url 'scheduler:view_calendar' %}">View Calendar</a>
+                <a href="{% url 'scheduler:event_stats' %}">Stats</a>
+            </nav>
+        </div>
+        <div class="nav-right">
+            {% if user.is_authenticated %}
+                <span>Welcome, {{ user.username }}!  </span>
+                <a href="{% url 'scheduler:logout' %}">Logout</a>
+            {% else %}
+                <a href="{% url 'scheduler:login' %}">Login</a>
+                <a href="{% url 'scheduler:signup' %}">Sign Up</a>
+            {% endif %}
+        </div>
     </header>
-
     <main>
         {% if messages %}
             <div class="messages">

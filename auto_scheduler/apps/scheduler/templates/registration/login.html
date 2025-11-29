@@ -1,10 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
-<h3>Log In</h3>
-<form method="POST">
-    {% csrf_token %}
-    {{form}}
-    <button type="submit">Log In</button>
-</form>
-<a class='signup-link' href="{% url 'scheduler:signup' %}">Sign Up</a>
+<div class="auth-container">
+    <div class="auth-card-simple">
+        <h2>Log In</h2>
+        <form method="POST">
+            {% csrf_token %}
+            {{form.as_p}}
+            <button type="submit" class="btn-auth">Log In</button>
+        </form>
+        <p class="auth-alt">
+            Don't have an account?
+            <a href="{% url 'scheduler:signup' %}">Sign Up</a>
+        </p>
+    </div>
+</div>
 {% endblock content %}
