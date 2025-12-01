@@ -16,7 +16,11 @@
     <meta charset="UTF-8" />
     <title>{% block title %}Auto Scheduler{% endblock %}</title>
     <!-- CSS -->
-    <link rel="stylesheet" href="{% static 'scheduler/css/base.css' %}">
+    <link rel="stylesheet" href="{% static 'scheduler/css/base.css' %}?v=3">
+    <!-- Page-specific CSS (e.g., stats.css) -->
+    {% block extra_css %}
+    {% endblock %}
+
 </head>
 
 <body>

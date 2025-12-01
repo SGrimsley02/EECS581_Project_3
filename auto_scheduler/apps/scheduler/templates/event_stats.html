@@ -4,78 +4,149 @@
                  including time spent per event type and bar charts
     Authors: Audrey Pan
     Created: November 22, 2025
-    Last Modified: November 22, 2025
+    Last Modified: November 24, 2025
 -->
 {% extends "base.html" %}
 {% load static %}
 
 {% block title %}Event Stats - Auto Scheduler{% endblock %}
 
-{% block content %}
-  <h2>Event Statistics</h2>
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'scheduler/css/stats.css' %}?v=7">
+{% endblock %}
 
-  <form method="get" class="stats-filters" style="margin-bottom: 1.5rem;">
-    <label>
-      Start date:
-      <input type="date" name="start" value="{{ start_date }}">
+
+
+{% block content %}
+
+<h2>Event Statistics</h2>
+
+<!-- Date range filter -->
+<form method="get" class="stats-filters" style="margin-bottom: 1.5rem;">
+  <label>Start date: <input type="date" name="start" value="{{ start_date }}"></label>
+  <label style="margin-left: 1rem;">End date: <input type="date" name="end" value="{{ end_date }}"></label>
+  <button type="submit" style="margin-left: 1.5rem;">Update</button>
+</form>
+
+{% if not has_data %}
+  <p>No scheduled events yet. Import a calendar and add events to see stats.</p>
+{% else %}
+
+<!-- Event-type table -->
+<h3 class="stats-section-title">Time Spent by Event Type</h3>
+<div class="stats-table-wrapper">
+  <table class="stats-table">
+    <thead>
+      <tr><th>Event Type</th><th>Total Time (minutes)</th></tr>
+    </thead>
+    <tbody>
+      {% for row in type_stats %}
+        <tr><td>{{ row.event_type }}</td><td>{{ row.minutes }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Bar chart -->
+<h3>Visual Summary</h3>
+<canvas id="typeChart"></canvas>
+
+<!-- Monthly heatmap -->
+<h3 class="stats-section-title">Monthly Study Overview</h3>
+
+<div class="heatmap-wrapper">
+
+  <!-- Month/year selector -->
+  <form method="get" class="heatmap-month-picker">
+    <label>Month:
+      <select name="heat_month_num">
+        {% for m in heat_month_options %}
+          <option value="{{ m.value }}" {% if m.value == heat_month_num %}selected{% endif %}>
+            {{ m.label }}
+          </option>
+        {% endfor %}
+      </select>
     </label>
-    <label style="margin-left: 1rem;">
-      End date:
-      <input type="date" name="end" value="{{ end_date }}">
+
+    <label>Year:
+      <select name="heat_year">
+        {% for y in heat_year_options %}
+          <option value="{{ y }}" {% if y == heat_year %}selected{% endif %}>
+            {{ y }}
+          </option>
+        {% endfor %}
+      </select>
     </label>
-    <button type="submit" style="margin-left: 1rem;">Update</button>
+
+    <!-- Preserve bar-chart range -->
+    <input type="hidden" name="start" value="{{ start_date }}">
+    <input type="hidden" name="end" value="{{ end_date }}">
+
+    <button type="submit">Update</button>
   </form>
 
-  {% if not has_data %}
-    <p>No scheduled events yet. Import a calendar and add events to see stats.</p>
+  <!-- Month title -->
+  <h4 class="heatmap-month-title">{{ heat_month_name }} {{ heat_year }}</h4>
+
+  {% if heat_has_data %}
+    <!-- Heatmap canvas -->
+    <canvas id="studyHeatmap" width="900" height="420"></canvas>
+
+    <!-- Legend (directly under canvas) -->
+    <div class="heatmap-legend">
+      <span>Study intensity:</span>
+      <span class="legend-box heat-0">0h</span>
+      <span class="legend-box heat-1">≤ 25%</span>
+      <span class="legend-box heat-2">≤ 50%</span>
+      <span class="legend-box heat-3">≤ 75%</span>
+      <span class="legend-box heat-4">&gt; 75%</span>
+    </div>
+
   {% else %}
-    <h3 class = "stats-section-title">Time Spent by Event Type</h3>
-
-    <!-- Simple table -->
-    <div class = "stats-table-wrapper">
-    <table class = "stats-table">
-      <thead>
-        <tr>
-          <th>Event Type</th>
-          <th>Total Time (minutes)</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in type_stats %}
-          <tr>
-            <td>{{ row.event_type }}</td>
-            <td>{{ row.minutes }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-    <!-- Bar chart -->
-    <h3>Visual Summary</h3>
-    <canvas id="typeChart" width="400" height="200"></canvas>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-      const labels = {{ labels_json|safe }};
-      const minutes = {{ minutes_json|safe }};
-
-      const ctx = document.getElementById('typeChart').getContext('2d');
-      new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Time spent (minutes)',
-            data: minutes,
-          }]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            y: { beginAtZero: true }
-          }
-        }
-      });
-    </script>
+    <p>No study events found for {{ heat_month_name }} {{ heat_year }}.</p>
   {% endif %}
+</div>
+
+{% if heat_has_data %}
+<!-- Summary table (outside wrapper) -->
+<div class="study-summary">
+  <table class="summary-table">
+    <tbody>
+      <tr><th>Total study</th><td>{{ heat_summary.total_hours }} hours ({{ heat_summary.total_minutes }} minutes)</td></tr>
+      <tr><th>Days with study</th><td>{{ heat_summary.days_with_study }}</td></tr>
+      <tr><th>Average per study day</th><td>{{ heat_summary.avg_hours_per_study_day }} hours ({{ heat_summary.avg_minutes_per_study_day }} minutes)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Heatmap global JS variables -->
+<script>
+  window.heatmapData = [
+    {% for week in heat_weeks %}
+      {% for day in week %}
+        {% if day %}
+          { x:{{ forloop.counter0 }}, y:{{ forloop.parentloop.counter0 }}, bucket:{{ day.bucket }},
+            minutes:{{ day.minutes }}, date:"{{ day.date }}", day:{{ day.day }} },
+        {% endif %}
+      {% endfor %}
+    {% endfor %}
+  ];
+  window.numHeatWeeks = {{ heat_weeks|length }};
+</script>
+
+{% endif %}
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2"></script>
+
+
+<script>
+  window.statsLabels = {{ labels_json|safe }};
+  window.statsMinutes = {{ minutes_json|safe }};
+</script>
+
+<script src="{% static 'scheduler/js/event_stats.js' %}"></script>
+
+{% endif %}
 {% endblock %}
