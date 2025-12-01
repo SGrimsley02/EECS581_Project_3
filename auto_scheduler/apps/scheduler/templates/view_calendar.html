@@ -1,9 +1,9 @@
 <!--
-    Name: apps/scheduler/templates/exportView.html
+    Name: apps/scheduler/templates/view_calendar.html
     Description: HTML template extension for the export calendar view page.
-    Authors: Kiara Grimsley, Ella Nguyen
+    Authors: Kiara Grimsley, Ella Nguyen, Lauren D'Souza, Reeny Huang
     Created: November 7, 2025
-    Last Modified: November 11, 2025
+    Last Modified: November 26, 2025
 -->
 
 
@@ -17,6 +17,13 @@
   <!-- Full Calendar import -->
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.7/index.global.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.7/index.global.min.js"></script>
+
+  {{ event_type_choices|json_script:"event-types-json" }}
+  <script>
+    window.DELETE_EVENT_URL = "{% url 'scheduler:delete_event' 'EVENT_ID_PLACEHOLDER' %}";
+    window.EDIT_EVENT_URL = "{% url 'scheduler:edit_event' 'EVENT_ID_PLACEHOLDER' %}";
+    window.EVENT_TYPES = JSON.parse(document.getElementById('event-types-json').textContent);
+</script>
   <script src="{% static 'scheduler/js/calendar.js' %}"></script>
   <link rel="stylesheet" href="{% static 'scheduler/css/calendar.css' %}">
 
@@ -28,90 +35,26 @@
 
     <div id="calendar" data-initial-date="{{ initial_date }}"></div>
 
+    <!-- Modals for event details and editing -->
+    <div id="modal-overlay" class="modal-overlay" style="display:none;">
+      <div class="modal-event">
+        <span id="modal-close" class="close-button">&times;</span>
+        <div class="editable-header">Event Title:</div>
+        <div class="editable" contenteditable="plaintext-only" id="modal-event-title">(Event Title)</div>
+        <ul id="modal-event-details">
+          <li><strong>Type:</strong> <select id="modal-event-type"></select></li>
+          <li><strong>Start:</strong> <input type="datetime-local" value="" id="modal-event-start"></input></li>
+          <li><strong>End:</strong> <input type="datetime-local" value="" id="modal-event-end"></input></li>
+        </ul>
+        <div class="editable-header">Description:</div>
+        <div class="editable" contenteditable="plaintext-only" id="modal-event-description"></div>
 
-  {% if DEBUG %}
-    <h3>Imported Events (Debug)</h3>
-    <ul>
-    {% for event in imported_events %}
-    <li style="margin-bottom: 0.75rem;">
-      <strong>{% firstof event.name event.title "(No Title)" %}</strong>
+        <button id="save-event-button">Save Changes</button>
+        <button id="delete-event-button">Delete Event</button>
 
-      {% if event.priority %}
-    <span class="priority-badge priority-{{ event.priority|lower }}">
-      {{ event.priority|title }}
-    </span>
-  {% endif %}
+      </div>
+    </div>
 
-      — {{ event.start }} to {{ event.end }}
-
-          {% if event.description %}
-            <br><small><strong>Description:</strong> {{ event.description }}</small>
-          {% endif %}
-
-      {% if event.event_type %}
-        <br><small><strong>Type:</strong> {{ event.event_type|title }}</small>
-      {% endif %}
-
-      <!-- DELETE IMPORTED EVENT -->
-        <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="delete">
-          <input type="hidden" name="delete_type" value="imported">
-          <input type="hidden" name="delete_index" value="{{ forloop.counter0 }}">
-          <button type="submit">Delete</button>
-        </form>
-      </li>
-    {% empty %}
-      <li>No imported events yet. Please upload a .ics file first.</li>
-    {% endfor %}
-  </ul>
-
-  <hr>
-
-  <!-- TASK REQUESTS (these are the “generated schedule” inputs) -->
-  <h3>Task Requests (to be scheduled)</h3>
-  <ul>
-    {% for t in event_requests %}
-      <li style="margin-bottom: 0.75rem;">
-        <strong>{% firstof t.title t.name "(No Title)" %}</strong>
-        <span>
-          ({{ t.priority|title }}, {{ t.duration_minutes }} min)
-        </span>
-
-        {% if t.description %}
-          <br><small><strong>Description:</strong> {{ t.description }}</small>
-        {% endif %}
-
-        <!-- DELETE TASK REQUEST -->
-        <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="delete">
-          <input type="hidden" name="delete_type" value="task">
-          <input type="hidden" name="delete_index" value="{{ forloop.counter0 }}">
-          <button type="submit">Delete</button>
-        </form>
-      </li>
-    {% empty %}
-      <li>No task requests yet. Add some on the "Add Events" page.</li>
-    {% endfor %}
-  </ul>
-
-  <hr>
-
-<h3>Scheduling Order (Preview)</h3>
-<ol>
-  {% for t in preview_tasks %}
-    <li>
-      #{{ t.schedule_order }} —
-      <strong>{{ t.title }}</strong>
-      <small>({{ t.priority|title }}, {{ t.duration_minutes }} min)</small>
-    </li>
-  {% empty %}
-    <li>No tasks queued for scheduling.</li>
-  {% endfor %}
-</ol>
-
-    <hr>
 
     <h2>Edit History</h2>
     <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline">
@@ -126,15 +69,90 @@
       <button type="submit" {% if not redo_available %}disabled{% endif %}>Redo</button>
     </form>
 
-  <hr>
-  <h2>Export your Calendar</h2>
-  <p>Click the button below to download your .ics file.</p>
-  <form method="post" action="{% url 'scheduler:view_calendar' %}"> <!--Changed from GET to POST to flow with view_calendar logic-->
-      {% csrf_token %} <!--Required for security-->
-        <input type="hidden" name="action" value="export">
-      <button type="submit">Download .ics File</button>
-  </form>
+    <hr>
+    <h2>Export your Calendar</h2>
+    <p>Click the button below to download your .ics file.</p>
+    <form method="post" action="{% url 'scheduler:view_calendar' %}"> <!--Changed from GET to POST to flow with view_calendar logic-->
+        {% csrf_token %} <!--Required for security-->
+          <input type="hidden" name="action" value="export">
+        <button type="submit">Download .ics File</button>
+    </form>
 
-{% endif %}
+
+
+    <!-----------------------------------
+              DEBUG VIEW LISTS
+    ------------------------------------>
+  {% if False %} <!-- Set True to debug -->
+    <h3>Events (Debug)</h3>
+    <ul>
+
+    <ul>
+      {% for e in debug_events %}
+        <li style="margin-bottom: 0.75rem;">
+          <strong>{% firstof t.title t.name "(No Title)" %}</strong>
+          <span>
+            ({{ t.priority|title }}, {{ t.duration_minutes }} min)
+          </span>
+
+          {% if e.description %}
+            <br><small><strong>Description:</strong> {{ e.description }}</small>
+          {% endif %}
+
+          <!-- EDIT TASK REQUEST -->
+          <button type="button" onclick="toggleEdit('task-{{ forloop.counter0 }}')">Edit</button>
+          <div id="task-{{ forloop.counter0 }}" style="display:none; margin-top:0.5rem;">
+            <form method="post" action="{% url 'scheduler:view_calendar' %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="edit">
+              <input type="hidden" name="edit_type" value="task">
+              <input type="hidden" name="edit_index" value="{{ forloop.counter0 }}">
+
+              <div>
+                <label>Title: <input type="text" name="new_title" value="{{ e.title }}"></label>
+              </div>
+              <div>
+                <label>Description: <input type="text" name="new_description" value="{{ e.description }}"></label>
+              </div>
+              <div>
+                <label>Type:
+                  <select name="new_event_type">
+                    {% for etype in event_type_choices %}
+                      <option value="{{ etype }}" {% if e.event_type == etype %}selected{% endif %}>{{ etype }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+              </div>
+              <div style="margin-top:0.25rem;">
+                <button type="submit">Save</button>
+                <button type="button" onclick="toggleEdit('task-{{ forloop.counter0 }}')">Cancel</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- DELETE TASK REQUEST -->
+          <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="delete_type" value="task">
+            <input type="hidden" name="delete_index" value="{{ forloop.counter0 }}">
+            <button type="submit">Delete</button>
+          </form>
+        </li>
+      {% empty %}
+        <li>No task requests yet. Add some on the "Add Events" page.</li>
+      {% endfor %}
+    </ul>
+
+    <script>
+      function toggleEdit(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.display = (el.style.display === 'none' || el.style.display === '') ? 'block' : 'none';
+      }
+    </script>
+
+    <hr>
+  {% endif %}
 
 {% endblock %}

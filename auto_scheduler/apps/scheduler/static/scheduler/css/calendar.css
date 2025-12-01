@@ -1,9 +1,9 @@
 /*
     Name: apps/scheduler/static/scheduler/css/calendar-events.css
     Description: CSS colors for calendar event types.
-    Authors: Kiara Grimsley
+    Authors: Kiara Grimsley, Reeny Huang
     Created: November 23, 2025
-    Last Modified: November 23, 2025
+    Last Modified: November 26, 2025
 */
 
 #calendar {
@@ -14,28 +14,97 @@
 .fc-event.etype-work {
     background-color: #a6c8ff !important;
     border-color: #083994 !important;
+    color: black !important;
 }
 
 .fc-event.etype-study-session {
     background-color: #ffa8a5 !important;
     border-color: #9c1c17 !important;
+    color: black !important;
 }
 
 .fc-event.etype-class {
     background-color: #acffac !important;
     border-color: #227022 !important;
+    color: black !important;
 }
 
 .fc-event.etype-leisure {
     background-color: #fcafff !important;
     border-color: #ef099f !important;
+    color: black !important;
 }
 
 /* Fallback for unknown types */
 .fc-event.etype-other {
     background-color: #c0c0c0 !important;
+    color: black !important;
 }
 
 .fc-event.etype- {
     background-color: #c0c0c0 !important;
+    color: black !important;
+}
+
+
+/* Event Modal Styles */
+.modal-overlay { /* Overlay for backdrop */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.close-button { /* Close button */
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.modal-event { /* Modal container */
+    background: var(--pink2);
+    color: black;
+    padding: 2.2rem;
+    border-radius: 8px;
+    width: 400px;
+    max-width: 80%;
+    max-height: 80%;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    font-size: 1.1rem;
+    list-style: none;
+}
+
+#modal-event-details {
+    list-style: none;
+    margin-left: 15px;
+    color: var(--white);
+}
+
+.editable {
+    background-color: var(--white);
+    border: 1px solid var(--pink2);
+    padding: 6px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    min-height: 30px;
+}
+
+.editable-header {
+    font-weight: bold;
+    margin: 6px 0 4px 0;
+    color: var(--white);
+    font-size: 1.3rem;
 }

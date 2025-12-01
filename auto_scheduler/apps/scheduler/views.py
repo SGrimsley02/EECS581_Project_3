@@ -1,10 +1,10 @@
 '''
 Name: apps/scheduler/views.py
 Description: Views for handling scheduler functionality and the
-                study preferences form.
-Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan, Reeny Huang, Hart Nurnberg
+                study preferences form, stats page, etc.
+Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan, Reeny Huang, Hart Nurnberg, Lauren D'Souza
 Created: October 26, 2025
-Last Modified: November 23, 2025
+Last Modified: November 26, 2025
 '''
 import logging
 
@@ -17,15 +17,20 @@ from django.forms import formset_factory
 from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.decorators import login_required
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import make_aware, get_current_timezone, is_naive, localtime
 
 from .forms import ICSUploadForm, EventForm, StudyPreferencesForm
 
 from .utils.icsImportExport import import_ics, export_ics
 from .utils.scheduler import schedule_events
-from .utils.stats import compute_time_by_event_type, compute_monthly_heatmap_data, compute_study_minutes_by_day
+from .utils.stats import compute_time_by_event_type
+from .models import Calendar
+from .models import EventType as EventTypeModel
 
 import pytz
 from .utils.constants import * # SESSION_*, LOGGER_NAME
+from .utils.constants import EventType
 from datetime import date, timedelta, datetime
 from apps.scheduler.utils.scheduler import preview_schedule_order
 import copy
@@ -82,6 +87,7 @@ def upload_ics(request):
             try:
                 file_path = default_storage.save(ics_file.name, ics_file) # Save file to default storage
                 events = import_ics(default_storage.path(file_path)) # Process the uploaded ICS file
+                default_storage.delete(file_path) # Clean up uploaded file after processing
                 request.session[SESSION_IMPORTED_EVENTS] = events # Store events in session for later use
                 request.session[SESSION_FILE_PATH] = file_path # Store file path in session
                 request.session[SESSION_SCHEDULE_UPDATE] = True # Mark schedule for update
@@ -98,7 +104,7 @@ def upload_ics(request):
     return render(request, 'upload_ics.html', {'form': form}) # Render
 
 @login_required
-def add_events(request): # TODO: Ella + Hart
+def add_events(request):
     '''
     View to add new events to a calendar after ICS upload.
     '''
@@ -144,16 +150,14 @@ def add_events(request): # TODO: Ella + Hart
             # For MVP, we redirect to view/export page; scheduling engine can use these later.
             return redirect("scheduler:view_calendar")
     else:
-        initial = request.session.get(SESSION_EVENT_REQUESTS, [])
-        logger.info("add_events: GET detected; preloading %d existing event requests", len(initial))
+        initial = request.session.get(SESSION_EVENT_REQUESTS) or []
+        logger.info("add_events: GET detected; preloading existing event requests")
         formset = EventFormSet(initial=initial, prefix="events")
 
-    # Also pass a quick count of imported events for UX context
-    imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
     return render(
         request,
         "add_events.html",
-        {"formset": formset, "imported_count": len(imported_events)}
+        {"formset": formset}
     )
 
 @login_required
@@ -165,62 +169,73 @@ def view_calendar(request):
     check_preferences_recap(request)
 
     # Get scheduled events from session, or schedule if needed
-    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
+    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS) or []
     if not scheduled_events or request.session.get(SESSION_SCHEDULE_UPDATE, True):
         logger.info("view_calendar: reschedule needed; scheduling now")
-        imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-        event_requests = request.session.get(SESSION_EVENT_REQUESTS, [])
-        
+        # Get imported events from DB + session
+        calendar = request.user.calendars.first()
+        if not calendar:
+            calendar = Calendar.objects.create(
+                owner=request.user,
+                name="Default",
+                description="Auto-created calendar"
+            )
+        db_events = _db_events_to_session(calendar) if calendar else []
+        logger.debug("Found DB events: %d", len(db_events))
+        session_events = request.session.get(SESSION_IMPORTED_EVENTS) or []
+
+        # TODO: Improve deduplication logic, extremely rudimentary rn
+        seen = set()
+        imported_events = []
+        for ev in session_events: # Deduplicate, prefer session (live) events
+            uid = ev.get("uid") or ev.get("id")
+
+            title = ev.get("title") or ev.get("name")
+            start = ev.get("start") or ev.get("start_time")
+            title_key = (title, start)
+
+            if uid not in seen and title_key not in seen:
+                imported_events.append(ev)
+                if uid:
+                    seen.add(uid)
+                seen.add(title_key)
+        for ev in db_events: # Deduplicate, db_events come second
+            uid = ev.get("uid") or ev.get("id")
+            title = ev.get("title") or ev.get("name")
+            start = ev.get("start") or ev.get("start_time")
+            title_key = (title, start)
+            if uid not in seen and title_key not in seen:
+                imported_events.append(ev)
+                if uid:
+                    seen.add(uid)
+                seen.add(title_key)
+
+        event_requests = request.session.get(SESSION_EVENT_REQUESTS) or []
+
         # Get preferences for scheduling
-        preferences = request.session.get(SESSION_PREFERENCES, {})
+        preferences = request.session.get(SESSION_PREFERENCES) or {}
 
         # Schedule any events
         logger.info("view_calendar: scheduling %d events against %d imported events",
                     len(event_requests), len(imported_events))
         scheduled_events = imported_events + schedule_events(event_requests, imported_events, preferences=preferences)
         request.session[SESSION_SCHEDULED_EVENTS] = scheduled_events
+        request.session[SESSION_IMPORTED_EVENTS] = None # Clear imported events
+        request.session[SESSION_EVENT_REQUESTS] = None # Clear event requests
         request.session[SESSION_SCHEDULE_UPDATE] = False # Reset update flag
         request.session.modified = True # Ensure session is saved
+        _save_scheduled_events_to_db(scheduled_events, calendar)
 
     logger.info("view_calendar: total events to display/export: %d", len(scheduled_events))
 
-    # ICS Export
+    # ICS Export, Undo, Redo button handling
     if request.method == 'POST':
         action = request.POST.get("action", "export")
 
-        # Delete Event
-        if action == "delete":
-            _push_undo(request)  # snapshot before the change
-
-            delete_type  = request.POST.get("delete_type")
-            delete_index = request.POST.get("delete_index")
-
-            try:
-                idx = int(delete_index)
-            except (TypeError, ValueError):
-                idx = -1
-
-            imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-            event_requests   = request.session.get(SESSION_EVENT_REQUESTS, [])
-
-            if delete_type == "imported" and 0 <= idx < len(imported_events):
-                logger.info("view_calendar: deleting imported event at index %d", idx)
-                imported_events.pop(idx)
-                request.session[SESSION_IMPORTED_EVENTS] = imported_events
-            elif delete_type == "task" and 0 <= idx < len(event_requests):
-                logger.info("view_calendar: deleting task request at index %d", idx)
-                event_requests.pop(idx)
-                request.session[SESSION_EVENT_REQUESTS] = event_requests
-
-            request.session.modified = True
-            request.session[SESSION_SCHEDULE_UPDATE] = True
-            request.session.pop(SESSION_SCHEDULED_EVENTS, None)
-            return redirect("scheduler:view_calendar")
-
         # Undo
-        elif action == "undo":
-            undo_stack = request.session.get(SESSION_UNDO_STACK, [])
-            redo_stack = request.session.get(SESSION_REDO_STACK, [])
+        if action == "undo":
+            undo_stack = request.session.get(SESSION_UNDO_STACK) or []
+            redo_stack = request.session.get(SESSION_REDO_STACK) or []
 
             if undo_stack:
                 logger.info("view_calendar: undo requested")
@@ -235,8 +250,8 @@ def view_calendar(request):
 
         # REDO
         elif action == "redo":
-            undo_stack = request.session.get(SESSION_UNDO_STACK, [])
-            redo_stack = request.session.get(SESSION_REDO_STACK, [])
+            undo_stack = request.session.get(SESSION_UNDO_STACK) or []
+            redo_stack = request.session.get(SESSION_REDO_STACK) or []
 
             if redo_stack:
                 logger.info("view_calendar: redo requested")
@@ -251,27 +266,21 @@ def view_calendar(request):
 
         # Export ICS
         elif action == "export":
-            # Use scheduler to find placement of event_requests
-            imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-            event_requests   = request.session.get(SESSION_EVENT_REQUESTS, [])
-            preferences = request.session.get(SESSION_PREFERENCES, {})
-            logger.info("view_calendar: POST(export); scheduling %d tasks against %d imported events",
-                        len(event_requests), len(imported_events))
-            scheduled_events = schedule_events(event_requests, imported_events, preferences=preferences)
-            events = imported_events + scheduled_events
-            ics_stream = export_ics(events)
+            logger.info("view_calendar: export ICS requested with %d events", len(scheduled_events))
+            # Export to DB
+            calendar = request.user.calendars.first()
+            if not calendar: # If no calendar yet, create one
+                calendar = Calendar.objects.create(
+                    owner=request.user,
+                    name="Default",
+                    description="Auto-created calendar"
+                )
+            _save_scheduled_events_to_db(scheduled_events, calendar)
+            # Export to ICS
+            ics_stream = export_ics(scheduled_events)
             resp = StreamingHttpResponse(ics_stream, content_type='text/calendar')
             resp['Content-Disposition'] = 'attachment; filename="ScheduledCalendar.ics"'
             return resp
-
-    # GET: recompute latest lists & preview
-    imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-    event_requests   = request.session.get(SESSION_EVENT_REQUESTS, [])
-    events = imported_events + event_requests
-
-    preview = preview_schedule_order(event_requests)
-    for i, t in enumerate(preview, start=1):
-        t["schedule_order"] = i
 
     # flags for template (to disable buttons)
     undo_available = bool(request.session.get(SESSION_UNDO_STACK))
@@ -293,12 +302,10 @@ def view_calendar(request):
         'DEBUG': settings.DEBUG,
         'debug_events': scheduled_events,
         'initial_date': f"{year:04d}-{month:02d}-01",
-        'events': events,
-        'preview_tasks': preview,
-        'imported_events': imported_events,
-        'event_requests': event_requests,
+        'events': scheduled_events,
         'undo_available': undo_available,
-        'redo_available': redo_available
+        'redo_available': redo_available,
+        'event_type_choices': EventType.values,
     }
     logger.info("view_calendar: GET; rendering page with %d events", len(scheduled_events))
     return render(request, 'view_calendar.html', ctx)
@@ -308,16 +315,18 @@ def event_feed(request):
     Provides scheduled events in JSON format for FullCalendar.
     Gets rendered by view_calendar template.
     '''
-    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
+    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS) or []
 
     # Convert your stored events into FullCalendar format
     formatted = []
     for ev in scheduled_events:
+        start_time = _make_aware_dt(ev.get("start"))
+        end_time = _make_aware_dt(ev.get("end"))
         formatted.append({
             "id": ev.get("id", None) or ev.get("uid", None),
             "title": ev.get("name") or ev.get("title") or "(No Title)",
-            "start": ev.get("start"),
-            "end": ev.get("end"),
+            "start": start_time.isoformat() if start_time else None,
+            "end": end_time.isoformat() if end_time else None,
             "allDay": False,
             "className": [f"etype-{ev.get('event_type', 'other').lower().replace(' ', '-')}"] if ev.get("event_type") else [],
             "extendedProps": ev,  # keep all original data
@@ -394,14 +403,7 @@ def event_stats(request):
     """
     check_preferences_recap(request)
 
-    # Make sure we have an up-to-date schedule, same logic as view_calendar
-    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS, [])
-    if not scheduled_events or request.session.get(SESSION_SCHEDULE_UPDATE, True):
-        imported_events = request.session.get(SESSION_IMPORTED_EVENTS, [])
-        event_requests = request.session.get(SESSION_EVENT_REQUESTS, [])
-
-        scheduled_only = schedule_events(event_requests, imported_events)
-        scheduled_events = imported_events + scheduled_only
+    scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS) or []
 
         request.session[SESSION_SCHEDULED_EVENTS] = scheduled_events
         request.session[SESSION_SCHEDULE_UPDATE] = False
@@ -544,6 +546,60 @@ def event_stats(request):
     }
     return render(request, "event_stats.html", context)
 
+# ============================================================
+#  HANDLERS
+# ============================================================
+
+def delete_event(request, event_id):
+    print("delete_event: ENTERED", request.method, request.session.session_key, event_id)
+    if request.method == 'POST':
+        if event_id is not None:
+            _push_undo(request)  # snapshot before the change
+
+            scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS) or []
+            updated_events = [ev for ev in scheduled_events if str(ev.get("uid")) != str(event_id)]
+            request.session[SESSION_SCHEDULED_EVENTS] = updated_events
+            request.session.modified = True
+
+            return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'failed'}, status=400)
+
+def edit_event(request, event_id):
+    if request.method == 'POST':
+        _push_undo(request)  # snapshot before the change
+        try:
+            data = json.loads(request.body)
+            new_title = data.get("title", "").strip()
+            new_description = data.get("description", "").strip()
+            new_event_type = data.get("event_type", "").strip()
+            new_start = _normalize_timestamp(data.get("start", "").strip())
+            new_end = _normalize_timestamp(data.get("end", "").strip())
+        except (json.JSONDecodeError, KeyError):
+            return JsonResponse({'status': 'failed', 'error': 'Invalid data'}, status=400)
+        scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS) or []
+        for ev in scheduled_events:
+            if str(ev.get("uid")) == str(event_id):
+                if new_title:
+                    ev["title"] = new_title
+                    ev["name"] = new_title
+                if new_description:
+                    ev["description"] = new_description
+                else:
+                    ev.pop("description", None)
+                if new_event_type:
+                    ev["event_type"] = new_event_type
+                else:
+                    ev.pop("event_type", None)
+                if new_start:
+                    ev["start"] = new_start
+                if new_end:
+                    ev["end"] = new_end
+                break
+        request.session[SESSION_SCHEDULED_EVENTS] = scheduled_events
+        request.session.modified = True
+        return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'failed'}, status=400)
+
 
 # ============================================================
 #  MESSAGE
@@ -586,26 +642,21 @@ def check_preferences_recap(request):
 
 def _get_current_state(request):
     return {
-        "imported_events": copy.deepcopy(
-            request.session.get(SESSION_IMPORTED_EVENTS, [])
-        ),
-        "event_requests": copy.deepcopy(
-            request.session.get(SESSION_EVENT_REQUESTS, [])
+        "scheduled_events": copy.deepcopy(
+            request.session.get(SESSION_SCHEDULED_EVENTS) or []
         ),
     }
 
 def _apply_state(request, state):
-    request.session[SESSION_IMPORTED_EVENTS] = state.get("imported_events", [])
-    request.session[SESSION_EVENT_REQUESTS] = state.get("event_requests", [])
+    request.session[SESSION_SCHEDULED_EVENTS] = state.get("scheduled_events") or []
     request.session[SESSION_SCHEDULE_UPDATE] = True
-    request.session.pop(SESSION_SCHEDULED_EVENTS, None)
     request.session.modified = True
 
 def _push_undo(request):
-    undo_stack = request.session.get(SESSION_UNDO_STACK, [])
+    undo_stack = request.session.get(SESSION_UNDO_STACK) or []
     undo_stack.append(_get_current_state(request))
     # cap history to last N steps
-    if len(undo_stack) > 20:
+    if len(undo_stack) > 10:
         undo_stack.pop(0)
     request.session[SESSION_UNDO_STACK] = undo_stack
     # any new edit clears redo history
@@ -643,3 +694,82 @@ def _event_in_range(ev, start_date, end_date):
     if end_date and ev_start > end_date:
         return False
     return True
+
+def _db_events_to_session(calendar):
+    """Convert DB events into the dict format used by the scheduler/session."""
+    events = []
+    for ev in calendar.events.all():
+        events.append({
+            "uid": str(ev.id),
+            "title": ev.summary,
+            "name": ev.summary,
+            "description": ev.description or "",
+            "start": ev.start_time.isoformat(),
+            "end": ev.end_time.isoformat(),
+            "event_type": ev.event_type.name if ev.event_type else None,
+            "location": ev.location,
+            "alarm": ev.alarm,
+        })
+    return events
+
+def _save_scheduled_events_to_db(all_events, calendar):
+    """
+    Saves final scheduled events (imported + scheduled tasks) into DB.
+    Clears the old calendar contents first to ensure no duplicates.
+    """
+    calendar.clear_events()
+
+    for ev in all_events:
+        start = datetime.fromisoformat(ev["start"])
+        end = datetime.fromisoformat(ev["end"])
+        event_type = ev.get("event_type") # Convert to EventType instance
+        event_type = EventTypeModel.objects.filter(name=event_type).first() if event_type else None
+        calendar.create_event(
+            summary=ev.get("title") or ev.get("name") or "(No Title)",
+            start_time=start,
+            end_time=end,
+            event_type=event_type,
+            description=ev.get("description", ""),
+            location=ev.get("location"),
+            alarm=ev.get("alarm", False),
+        )
+
+def _normalize_timestamp(datetime_str):
+    """Parse times from JS and ensure it is timezone-aware in UTC."""
+    if not datetime_str:
+        return None
+
+    dt = parse_datetime(datetime_str)
+    if not dt:
+        return datetime_str  # fallback, keep original
+
+    # If the parsed value is naive (no tz offset), treat it as server-local
+    if is_naive(dt):
+        dt = make_aware(dt, get_current_timezone())
+
+    # store as UTC to keep consistent everywhere
+    return dt.astimezone(pytz.UTC).isoformat()
+
+def _make_aware_dt(dt):
+    """Ensure a datetime is timezone-aware in UTC."""
+    if dt is None:
+        return None
+
+    tz_local = get_current_timezone()
+    if isinstance(dt, datetime):
+        # Localize naive datetimes to server local tz, then convert to UTC
+        if is_naive(dt):
+            aware = make_aware(dt, tz_local)
+        else:
+            aware = dt
+        return aware.astimezone(pytz.UTC)
+
+    # Parse string → datetime
+    parsed = parse_datetime(dt)
+    if parsed is None:
+        return None
+
+    if is_naive(parsed):
+        parsed = make_aware(parsed, tz_local)
+
+    return parsed.astimezone(pytz.UTC)
