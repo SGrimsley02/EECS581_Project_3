@@ -96,8 +96,8 @@
 }
 
 /* Color scale */
-.heat-0 { background-color: var(--pink2); color: var(--purple); }
-.heat-1 { background-color: #9f86c0; color: var(--white); }
-.heat-2 { background-color: #7b5fa3; color: var(--white); }
-.heat-3 { background-color: #5e548e; color: var(--white); }
-.heat-4 { background-color: #3b2d69; color: var(--white); }
+.heat-0 { background-color: var(--white); color: var(--purple); }
+.heat-1 { background-color: var(--pink); color: var(--white); }
+.heat-2 { background-color: var(--pink2); color: var(--white); }
+.heat-3 { background-color: var(--lavender); color: var(--white); }
+.heat-4 { background-color: var(--purple); color: var(--white); }

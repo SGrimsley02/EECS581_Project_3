@@ -8,6 +8,10 @@ Last Modified: November 30, 2025
 '''
 from collections import defaultdict
 from datetime import datetime, date, timedelta
+import logging
+from .constants import LOGGER_NAME
+
+logger = logging.getLogger(LOGGER_NAME)
 
 
 def compute_time_by_event_type(events):
@@ -21,6 +25,8 @@ def compute_time_by_event_type(events):
     """
     totals = defaultdict(float)
     today = date.today()
+    
+    logger.debug("compute_time_by_event_type: starting with %d events", len(events))
 
     for ev in events:
         event_type = ev.get("event_type") or "Other"
@@ -30,6 +36,7 @@ def compute_time_by_event_type(events):
         #  - compute duration if needed
         start = ev.get("start")
         if not start:
+            logger.debug("Skipping event (%s): missing start", event_type)
             continue
 
         # Normalize start to a datetime
@@ -39,13 +46,22 @@ def compute_time_by_event_type(events):
             try:
                 start_dt = datetime.fromisoformat(start)
             except ValueError:
+                logger.debug(
+                    "compute_time_by_event_type: skipping event (%s): invalid start string %r",
+                    event_type, start
+                )
                 continue
         else:
             # unsupported type
+            logger.debug(
+                "compute_time_by_event_type: skipping event (%s): unsupported start type %r",
+                event_type, type(start)
+            )
             continue
 
         # Skip events that start in the future
         if start_dt.date() > today:
+            logger.debug("Skipping event (%s): starts in future (%s)", event_type, start_dt.date())
             continue
 
         # Prefer explicit duration if available
@@ -54,12 +70,17 @@ def compute_time_by_event_type(events):
             try:
                 dur = float(dur)
             except (TypeError, ValueError):
+                logger.debug("Invalid duration_minutes for event (%s): %r; falling back to start/end", event_type, dur)
                 dur = None
 
         # If no usable duration_minutes, try start/end
         if dur is None:
             end = ev.get("end")
             if not end:
+                logger.debug(
+                    "compute_time_by_event_type: skipping event (%s): missing end",
+                    event_type
+                )
                 continue
 
             if isinstance(end, datetime):
@@ -68,11 +89,23 @@ def compute_time_by_event_type(events):
                 try:
                     end_dt = datetime.fromisoformat(end)
                 except ValueError:
+                    logger.debug(
+                        "compute_time_by_event_type: skipping event (%s): invalid end string %r",
+                        event_type, end
+                    )
                     continue
             else:
+                logger.debug(
+                    "compute_time_by_event_type: skipping event (%s): unsupported end type %r",
+                    event_type, type(end)
+                )
                 continue
 
             if end_dt <= start_dt:
+                logger.debug(
+                    "compute_time_by_event_type: skipping event (%s): end <= start (%s <= %s)",
+                    event_type, end_dt, start_dt
+                )
                 continue
 
             dur = (end_dt - start_dt).total_seconds() / 60.0  # minutes
@@ -103,19 +136,37 @@ def compute_study_minutes_by_day(events, study_event_type="Study"):
         start_str = ev.get("start")
         end_str = ev.get("end")
         if not start_str or not end_str:
+            logger.debug(
+                "compute_study_minutes_by_day: skipping study event: missing start or end "
+                "(start=%r, end=%r)",
+                start_str, end_str
+            )
             continue
 
         try:
             start_dt = datetime.fromisoformat(start_str)
             end_dt = datetime.fromisoformat(end_str)
         except ValueError:
+            logger.debug(
+                "compute_study_minutes_by_day: skipping study event: invalid datetime "
+                "(start=%r, end=%r)",
+                start_str, end_str
+            )
             continue
 
         if end_dt <= start_dt:
+            logger.debug(
+                "compute_study_minutes_by_day: skipping study event: end <= start (%s <= %s)",
+                end_dt, start_dt
+            )
             continue
 
         minutes = (end_dt - start_dt).total_seconds() / 60.0
         if minutes <= 0:
+            logger.debug(
+                "compute_study_minutes_by_day: skipping study event: non-positive minutes %r",
+                minutes
+            )
             continue
 
         day = start_dt.date()

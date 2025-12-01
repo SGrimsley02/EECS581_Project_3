@@ -28,9 +28,10 @@
   <button type="submit" style="margin-left: 1.5rem;">Update</button>
 </form>
 
-{% if not has_data %}
+{% if not type_has_data %}
   <p>No scheduled events yet. Import a calendar and add events to see stats.</p>
 {% else %}
+
 
 <!-- Event-type table -->
 <h3 class="stats-section-title">Time Spent by Event Type</h3>
@@ -86,9 +87,10 @@
   </form>
 
   <!-- Month title -->
-  <h4 class="heatmap-month-title">{{ heat_month_name }} {{ heat_year }}</h4>
+  <h4 class="heatmap-month-title">{{ month_name }} {{ year }}</h4>
 
-  {% if heat_has_data %}
+
+  {% if has_data %}
     <!-- Heatmap canvas -->
     <canvas id="studyHeatmap" width="900" height="420"></canvas>
 
@@ -103,18 +105,18 @@
     </div>
 
   {% else %}
-    <p>No study events found for {{ heat_month_name }} {{ heat_year }}.</p>
+    <p>No study events found for {{ month_name }} {{ year }}.</p>
   {% endif %}
 </div>
 
-{% if heat_has_data %}
+{% if has_data %}
 <!-- Summary table (outside wrapper) -->
 <div class="study-summary">
   <table class="summary-table">
     <tbody>
-      <tr><th>Total study</th><td>{{ heat_summary.total_hours }} hours ({{ heat_summary.total_minutes }} minutes)</td></tr>
-      <tr><th>Days with study</th><td>{{ heat_summary.days_with_study }}</td></tr>
-      <tr><th>Average per study day</th><td>{{ heat_summary.avg_hours_per_study_day }} hours ({{ heat_summary.avg_minutes_per_study_day }} minutes)</td></tr>
+      <tr><th>Total study</th><td>{{ summary.total_hours }} hours ({{ summary.total_minutes }} minutes)</td></tr>
+      <tr><th>Days with study</th><td>{{ summary.days_with_study }}</td></tr>
+      <tr><th>Average per study day</th><td>{{ summary.avg_hours_per_study_day }} hours ({{ summary.avg_minutes_per_study_day }} minutes)</td></tr>
     </tbody>
   </table>
 </div>
@@ -122,7 +124,7 @@
 <!-- Heatmap global JS variables -->
 <script>
   window.heatmapData = [
-    {% for week in heat_weeks %}
+    {% for week in weeks %}
       {% for day in week %}
         {% if day %}
           { x:{{ forloop.counter0 }}, y:{{ forloop.parentloop.counter0 }}, bucket:{{ day.bucket }},
@@ -131,7 +133,7 @@
       {% endfor %}
     {% endfor %}
   ];
-  window.numHeatWeeks = {{ heat_weeks|length }};
+  window.numHeatWeeks = {{ weeks|length }};
 </script>
 
 {% endif %}

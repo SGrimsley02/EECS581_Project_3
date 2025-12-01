@@ -432,36 +432,28 @@ def event_stats(request):
         study_event_type=EventType.STUDY,
     )
 
-    # Month/year + options for the dropdowns
-    heat_year = heat_today.year
-    heat_month_num = heat_today.month
-    heat_year_options = list(range(heat_year - 2, heat_year + 3))
-    heat_month_options = HEAT_MONTH_OPTIONS  # from constants.py
-
     # Shared picker context so we don't repeat ourselves in each render()
     heat_picker_ctx = {
-        "heat_year": heat_year,
-        "heat_month_num": heat_month_num,
-        "heat_year_options": heat_year_options,
-        "heat_month_options": heat_month_options,
+        "heat_year": heat_today.year,
+        "heat_month_num": heat_today.month,
+        "heat_year_options": list(range(heat_today.year - 2, heat_today.year + 3)),
+        "heat_month_options": HEAT_MONTH_OPTIONS,
     }
 
     # If no scheduled events at all: still show the heatmap (likely empty)
     if not scheduled_events:
         return render(request, "event_stats.html", {
-            "has_data": False,
+            "type_has_data": False,   # bar chart has no data
             "type_stats": [],
             "labels_json": "[]",
             "minutes_json": "[]",
             "start_date": start_str,
             "end_date": end_str,
-            # heatmap context
-            "heat_weeks": heatmap_ctx["weeks"],
-            "heat_has_data": heatmap_ctx["has_data"],
-            "heat_month_name": heatmap_ctx["month_name"],
-            "heat_summary": heatmap_ctx["summary"],
+            # heatmap context (weeks, has_data, month_name, year, summary)
+            **heatmap_ctx,
             **heat_picker_ctx,
         })
+
 
     # ----- Parse date filters safely for bar chart -----
     start_date = None
@@ -486,19 +478,17 @@ def event_stats(request):
     # If no events match the filter, still show heatmap but no type stats
     if not filtered_events:
         return render(request, "event_stats.html", {
-            "has_data": False,
+            "type_has_data": False,
             "type_stats": [],
             "labels_json": "[]",
             "minutes_json": "[]",
             "start_date": start_str,
             "end_date": end_str,
             # heatmap context
-            "heat_weeks": heatmap_ctx["weeks"],
-            "heat_has_data": heatmap_ctx["has_data"],
-            "heat_month_name": heatmap_ctx["month_name"],
-            "heat_summary": heatmap_ctx["summary"],
+            **heatmap_ctx,
             **heat_picker_ctx,
         })
+
 
     # ----- Compute time-per-event-type stats for bar chart -----
     type_stats = compute_time_by_event_type(filtered_events)
@@ -506,18 +496,15 @@ def event_stats(request):
     minutes = [row["minutes"] for row in type_stats]
 
     return render(request, "event_stats.html", {
-        "has_data": True,
+        "type_has_data": True,
         "type_stats": type_stats,
         "labels_json": json.dumps(labels),
         "minutes_json": json.dumps(minutes),
         "start_date": start_str,
         "end_date": end_str,
         # heatmap context
-        "heat_weeks": heatmap_ctx["weeks"],
-        "heat_has_data": heatmap_ctx["has_data"],
-        "heat_month_name": heatmap_ctx["month_name"],
-        "heat_summary": heatmap_ctx["summary"],
-        **heat_picker_ctx,
+        **heatmap_ctx,      # weeks, has_data, month_name, year, summary
+        **heat_picker_ctx,  # heat_year, heat_month_num, options
     })
 
 
