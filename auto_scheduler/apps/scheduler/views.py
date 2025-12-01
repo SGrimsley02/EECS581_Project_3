@@ -170,7 +170,7 @@ def view_calendar(request):
 
     # Get scheduled events from session, or schedule if needed
     scheduled_events = request.session.get(SESSION_SCHEDULED_EVENTS) or []
-    if not scheduled_events or request.session.get(SESSION_SCHEDULE_UPDATE, True):
+    if not scheduled_events or request.session.get(SESSION_SCHEDULE_UPDATE, False):
         logger.info("view_calendar: reschedule needed; scheduling now")
         # Get imported events from DB + session
         calendar = request.user.calendars.first()
@@ -184,7 +184,6 @@ def view_calendar(request):
         logger.debug("Found DB events: %d", len(db_events))
         session_events = request.session.get(SESSION_IMPORTED_EVENTS) or []
 
-        # TODO: Improve deduplication logic, extremely rudimentary rn
         seen = set()
         imported_events = []
         for ev in session_events: # Deduplicate, prefer session (live) events
@@ -612,7 +611,7 @@ def _get_current_state(request):
 
 def _apply_state(request, state):
     request.session[SESSION_SCHEDULED_EVENTS] = state.get("scheduled_events") or []
-    request.session[SESSION_SCHEDULE_UPDATE] = True
+    request.session[SESSION_SCHEDULE_UPDATE] = False # No update on undo/redo
     request.session.modified = True
 
 def _push_undo(request):
