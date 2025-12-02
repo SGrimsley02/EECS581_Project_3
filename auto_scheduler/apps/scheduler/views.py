@@ -615,6 +615,8 @@ def _get_current_state(request):
 
 def _apply_state(request, state):
     request.session[SESSION_SCHEDULED_EVENTS] = state.get("scheduled_events") or []
+    calendar = request.user.calendars.first()
+    _save_scheduled_events_to_db(request.session[SESSION_SCHEDULED_EVENTS], calendar)
     request.session[SESSION_SCHEDULE_UPDATE] = False # No update on undo/redo
     request.session.modified = True
 
