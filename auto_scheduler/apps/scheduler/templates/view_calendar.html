@@ -3,7 +3,7 @@
     Description: HTML template extension for the export calendar view page.
     Authors: Kiara Grimsley, Ella Nguyen, Lauren D'Souza, Reeny Huang
     Created: November 7, 2025
-    Last Modified: November 26, 2025
+    Last Modified: November 30, 2025
 -->
 
 
@@ -67,6 +67,13 @@
       {% csrf_token %}
       <input type="hidden" name="action" value="redo">
       <button type="submit" {% if not redo_available %}disabled{% endif %}>Redo</button>
+    </form>
+
+    <h2>Reschedule All Events</h2>
+    <form method="post" action="{% url 'scheduler:view_calendar' %}" style="display:inline; margin-left:0.5rem;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="rerandomize">
+      <button type="submit">Reschedule All</button>
     </form>
 
     <hr>

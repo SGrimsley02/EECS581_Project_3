@@ -4,7 +4,7 @@ Description: Views for handling scheduler functionality and the
                 study preferences form, stats page, etc.
 Authors: Kiara Grimsley, Ella Nguyen, Audrey Pan, Reeny Huang, Hart Nurnberg, Lauren D'Souza
 Created: October 26, 2025
-Last Modified: November 26, 2025
+Last Modified: December 1, 2025
 '''
 import logging
 
@@ -212,13 +212,27 @@ def view_calendar(request):
 
         event_requests = request.session.get(SESSION_EVENT_REQUESTS) or []
 
+        # Remember imported ICS events only once
+        if not request.session.get(SESSION_ORIGINAL_IMPORTED_EVENTS):
+            request.session[SESSION_ORIGINAL_IMPORTED_EVENTS] = copy.deepcopy(imported_events)
+
+        # Merge new user-created requests into original requests list
+        original_requests = request.session.get(SESSION_ORIGINAL_EVENT_REQUESTS) or []
+        merged = copy.deepcopy(original_requests)
+
+        for req in event_requests:
+            if req not in merged:
+                merged.append(copy.deepcopy(req))
+
+        request.session[SESSION_ORIGINAL_EVENT_REQUESTS] = merged
+
         # Get preferences for scheduling
         preferences = request.session.get(SESSION_PREFERENCES) or {}
 
-        # Schedule any events
+        # Schedule any events (initial schedule is deterministic)
         logger.info("view_calendar: scheduling %d events against %d imported events",
                     len(event_requests), len(imported_events))
-        scheduled_events = imported_events + schedule_events(event_requests, imported_events, preferences=preferences)
+        scheduled_events = imported_events + schedule_events(event_requests, imported_events, preferences=preferences, randomize=False,)
         request.session[SESSION_SCHEDULED_EVENTS] = scheduled_events
         request.session[SESSION_IMPORTED_EVENTS] = None # Clear imported events
         request.session[SESSION_EVENT_REQUESTS] = None # Clear event requests
@@ -261,6 +275,39 @@ def view_calendar(request):
                 request.session[SESSION_UNDO_STACK] = undo_stack
                 request.session[SESSION_REDO_STACK] = redo_stack
                 _apply_state(request, next_state)
+
+            return redirect("scheduler:view_calendar")
+        
+        # Re-randomize schedule
+        elif action == "rerandomize":
+            logger.info("view_calendar: re-randomize requested")
+
+            # Snapshot for undo
+            _push_undo(request)
+
+            # Pull original input components
+            original_imported = request.session.get(SESSION_ORIGINAL_IMPORTED_EVENTS) or []
+            original_requests = request.session.get(SESSION_ORIGINAL_EVENT_REQUESTS) or []
+            preferences = request.session.get(SESSION_PREFERENCES) or {}
+
+            logger.info("Re-running schedule on %d user tasks vs %d imported events",
+                        len(original_requests), len(original_imported))
+
+            # Perform re-randomization
+            new_scheduled_tasks = schedule_events(
+                original_requests,
+                original_imported,
+                preferences=preferences,
+                randomize=True
+            )
+
+            scheduled_events = original_imported + new_scheduled_tasks
+            request.session[SESSION_SCHEDULED_EVENTS] = scheduled_events
+            request.session.modified = True
+
+            # Sync DB
+            calendar = request.user.calendars.first()
+            _save_scheduled_events_to_db(scheduled_events, calendar)
 
             return redirect("scheduler:view_calendar")
 

@@ -7,7 +7,7 @@ Description: Constants used in the scheduler app.
                 Debug logger
 Authors: Kiara Grimsley, Lauren D'Souza, Hart Nurnberg
 Created: November 9, 2025
-Last Modified: November 23, 2025
+Last Modified: December 1, 2025
 '''
 
 
@@ -38,6 +38,8 @@ SESSION_REDO_STACK = "schedule_redo_stack"
 PREFERENCES_RECAP_DAYS = 14
 SESSION_PREF_LAST_UPDATED = "preferences_last_updated"
 SESSION_PREF_RECAP_DISMISSED = "preferences_recap_dismissed"
+SESSION_ORIGINAL_EVENT_REQUESTS = "original_event_requests"
+SESSION_ORIGINAL_IMPORTED_EVENTS = "original_imported_events"
 
 
 LOGGER_NAME = "apps.scheduler"

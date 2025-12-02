@@ -3,7 +3,7 @@ Name: apps/scheduler/utils/scheduler.py
 Description: Module for scheduling tasks
 Authors: Hart Nurnberg, Audrey Pan, Kiara Grimsley, Ella Nguyen, Lauren D'Souza
 Created: November 7, 2025
-Last Modified: November 26, 2025
+Last Modified: December 1, 2025
 '''
 
 from django.utils.timezone import make_aware, get_current_timezone, is_naive
@@ -14,6 +14,7 @@ import pytz
 from pytz import UTC
 import logging
 from .constants import PRIORITY_ORDER
+import random
 logger = logging.getLogger("apps.scheduler")
 
 UTC = pytz.UTC
@@ -398,6 +399,10 @@ def schedule_single_event(
     Returns:
         (start_dt, end_dt) on success, or (None, None) if no fit is found.
     """
+
+    if preferences.get("randomize") and candidates:
+        random.shuffle(candidates) # Randomize order of time chunk candidates (as opposed to chronological order)
+
     needed = timedelta(minutes=chunk_minutes)
     placed = False
     for cand_s, cand_e in candidates:
@@ -486,6 +491,7 @@ def schedule_events(
     window_start: Optional[datetime] = None,
     window_end: Optional[datetime] = None,
     preferences: Optional[dict] = None,
+    randomize: bool = False,
 ) -> List[Dict]:
     """
     Main scheduling routine.
@@ -493,6 +499,8 @@ def schedule_events(
       - event_requests_raw: session event dicts (ISO strings) -> will be expanded
       - imported_events: output of import_ics (used to build busy slots)
       - window_start/window_end: overall scheduling timeframe (default: now .. +14 days)
+      - randomize: if True, will shuffle candidate windows per event chunk so multiple
+        runs can yield different schedules (still respecting constraints)
     Returns:
       - list of ScheduledEvent dicts: {"title","description","start","end","event_type","priority"}
     """
@@ -553,13 +561,14 @@ def schedule_events(
                 "wake_time": wake_time,
                 "bed_time": bed_time,
                 "local_tz": local_tz,
+                "randomize": randomize,
             }
             candidates = _form_candidates(current_busy, window_start, window_end, event, chunk_preferences)
 
             logger.debug("schedule_events: candidates=%s", candidates)
 
             # Try to place this chunk in one of the candidates
-            start_time, end_time = schedule_single_event(event=event, chunk_minutes=chunk_minutes, current_busy=current_busy, scheduled_events=scheduled_events, candidates=candidates)
+            start_time, end_time = schedule_single_event(event=event, chunk_minutes=chunk_minutes, current_busy=current_busy, scheduled_events=scheduled_events, candidates=candidates, preferences=chunk_preferences,)
 
             # Recurring weekly logic (try same time, then same day, then same week)
             if event.get("recurring") and event.get("recurring_until"):
@@ -595,6 +604,7 @@ def schedule_events(
                         current_busy=current_busy,
                         scheduled_events=scheduled_events,
                         candidates=candidates,
+                        preferences=chunk_preferences,
                     )
 
                     # Step 2: Try another time same day
@@ -620,6 +630,7 @@ def schedule_events(
                             current_busy=current_busy,
                             scheduled_events=scheduled_events,
                             candidates=candidates,
+                            preferences=chunk_preferences,
                         )
 
                     # Step 3: Try same week any time
@@ -648,6 +659,7 @@ def schedule_events(
                             current_busy=current_busy,
                             scheduled_events=scheduled_events,
                             candidates=candidates,
+                            preferences=chunk_preferences,
                         )
 
                         if r_start is None:

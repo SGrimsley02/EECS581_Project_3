@@ -3,7 +3,7 @@ Name: icsImportExport.py
 Description: Module for importing and exporting calendar events in ICS format.
 Authors: Kiara Grimsley, Audrey Pan, Ella Nguyen, Lauren D'Souza
 Created: October 26, 2025
-Last Modified: November 26, 2025
+Last Modified: November 30, 2025
 Functions: export_ics(events, file_path)
             import_ics(file_path)
 '''
@@ -46,7 +46,7 @@ def export_ics(events): # TODO: modify to export from database
     calendar = Calendar()
     # Add all events to the calendar
     for event in events:
-        event_id = event.get("uid", f"{event.get("name", "no-title")}_{event.get("start", "no-start")}")
+        #event_id = event.get("uid", f"{event.get("name", "no-title")}_{event.get("start", "no-start")}") # Not used, and caused a bug. Keeping if needed later?
         ics_event = Event()
         ics_event.name = event.get("name", "No Title") # Event title, default No Title
         if ics_event.name is None or ics_event.name == "No Title":
