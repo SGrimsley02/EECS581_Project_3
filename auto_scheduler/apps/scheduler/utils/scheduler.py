@@ -570,8 +570,10 @@ def schedule_events(
                 occurrence_date = next_start_dt.date() + timedelta(weeks=1)
                 while occurrence_date <= recurrence_end_date:
                     # Step 1: Try same time on same day
-                    time_start = next_start_dt.time()
-                    time_end   = next_end_dt.time()
+                    local_start = next_start_dt.astimezone(local_tz)
+                    local_end   = next_end_dt.astimezone(local_tz)
+                    time_start = local_start.time().replace(tzinfo=None)
+                    time_end   = local_end.time().replace(tzinfo=None)
                     cand_start = to_datetime(occurrence_date, time_start, tzinfo_local=local_tz)
                     cand_end   = cand_start + timedelta(minutes=chunk_minutes)
 
