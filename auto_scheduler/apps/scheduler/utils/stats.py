@@ -4,35 +4,309 @@ Description: Utility module with data analysis functions for
              scheduled events.
 Authors: Audrey Pan
 Created: November 22, 2025
-Last Modified: November 22, 2025
+Last Modified: November 30, 2025
 '''
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, date, timedelta
+import logging
+from .constants import LOGGER_NAME
+
+logger = logging.getLogger(LOGGER_NAME)
+
 
 def compute_time_by_event_type(events):
     """
-    Given a list of event dicts (with 'start', 'end', and 'event_type'),
-    return a list of { "event_type": str, "minutes": float } summaries.
+    Given a list of event dicts, return a list of
+    { "event_type": str, "minutes": float } summaries.
+
+    Only counts events whose start date is on or before today.
+    Prefer an explicit 'duration_minutes' field if present;
+    otherwise fall back to (end - start).
     """
     totals = defaultdict(float)
+    today = date.today()
+    
+    logger.debug("compute_time_by_event_type: starting with %d events", len(events))
 
     for ev in events:
-        start = ev.get("start")
-        end = ev.get("end")
         event_type = ev.get("event_type") or "Other"
 
-        # You may already have datetime objects; if they're strings, parse them:
-        if isinstance(start, str):
-            start = datetime.fromisoformat(start)
-        if isinstance(end, str):
-            end = datetime.fromisoformat(end)
+        # We always need a start time so we can:
+        #  - filter out future events
+        #  - compute duration if needed
+        start = ev.get("start")
+        if not start:
+            logger.debug("Skipping event (%s): missing start", event_type)
+            continue
 
-        duration = (end - start).total_seconds() / 60.0  # minutes
-        if duration > 0:
-            totals[event_type] += duration
+        # Normalize start to a datetime
+        if isinstance(start, datetime):
+            start_dt = start
+        elif isinstance(start, str):
+            try:
+                start_dt = datetime.fromisoformat(start)
+            except ValueError:
+                logger.debug(
+                    "compute_time_by_event_type: skipping event (%s): invalid start string %r",
+                    event_type, start
+                )
+                continue
+        else:
+            # unsupported type
+            logger.debug(
+                "compute_time_by_event_type: skipping event (%s): unsupported start type %r",
+                event_type, type(start)
+            )
+            continue
+
+        # Skip events that start in the future
+        if start_dt.date() > today:
+            logger.debug("Skipping event (%s): starts in future (%s)", event_type, start_dt.date())
+            continue
+
+        # Prefer explicit duration if available
+        dur = ev.get("duration_minutes")
+        if dur is not None:
+            try:
+                dur = float(dur)
+            except (TypeError, ValueError):
+                logger.debug("Invalid duration_minutes for event (%s): %r; falling back to start/end", event_type, dur)
+                dur = None
+
+        # If no usable duration_minutes, try start/end
+        if dur is None:
+            end = ev.get("end")
+            if not end:
+                logger.debug(
+                    "compute_time_by_event_type: skipping event (%s): missing end",
+                    event_type
+                )
+                continue
+
+            if isinstance(end, datetime):
+                end_dt = end
+            elif isinstance(end, str):
+                try:
+                    end_dt = datetime.fromisoformat(end)
+                except ValueError:
+                    logger.debug(
+                        "compute_time_by_event_type: skipping event (%s): invalid end string %r",
+                        event_type, end
+                    )
+                    continue
+            else:
+                logger.debug(
+                    "compute_time_by_event_type: skipping event (%s): unsupported end type %r",
+                    event_type, type(end)
+                )
+                continue
+
+            if end_dt <= start_dt:
+                logger.debug(
+                    "compute_time_by_event_type: skipping event (%s): end <= start (%s <= %s)",
+                    event_type, end_dt, start_dt
+                )
+                continue
+
+            dur = (end_dt - start_dt).total_seconds() / 60.0  # minutes
+
+        # Add to totals if duration is positive
+        if dur and dur > 0:
+            totals[event_type] += dur
 
     # Convert to a nicer list so it's easy to use in templates / charts
     return [
         {"event_type": etype, "minutes": round(minutes, 1)}
         for etype, minutes in totals.items()
     ]
+
+
+def compute_study_minutes_by_day(events, study_event_type="Study"):
+    """
+    Aggregate total study minutes per calendar day.
+    Only counts events where event_type == study_event_type.
+    Returns a dict mapping date -> total minutes for that date.
+    """
+    minutes_by_day = {}
+
+    for ev in events:
+        if ev.get("event_type") != study_event_type:
+            continue
+
+        start_str = ev.get("start")
+        end_str = ev.get("end")
+        if not start_str or not end_str:
+            logger.debug(
+                "compute_study_minutes_by_day: skipping study event: missing start or end "
+                "(start=%r, end=%r)",
+                start_str, end_str
+            )
+            continue
+
+        try:
+            start_dt = datetime.fromisoformat(start_str)
+            end_dt = datetime.fromisoformat(end_str)
+        except ValueError:
+            logger.debug(
+                "compute_study_minutes_by_day: skipping study event: invalid datetime "
+                "(start=%r, end=%r)",
+                start_str, end_str
+            )
+            continue
+
+        if end_dt <= start_dt:
+            logger.debug(
+                "compute_study_minutes_by_day: skipping study event: end <= start (%s <= %s)",
+                end_dt, start_dt
+            )
+            continue
+
+        minutes = (end_dt - start_dt).total_seconds() / 60.0
+        if minutes <= 0:
+            logger.debug(
+                "compute_study_minutes_by_day: skipping study event: non-positive minutes %r",
+                minutes
+            )
+            continue
+
+        day = start_dt.date()
+        minutes_by_day[day] = minutes_by_day.get(day, 0) + minutes
+
+    return minutes_by_day
+
+
+def compute_monthly_heatmap_data(events, today=None, study_event_type="Study"):
+    """
+    Build data for a monthly study-heatmap.
+
+    The month/year shown comes from the `today` argument (anchor date),
+    but study minutes are only counted up to the *real* current date.
+
+    Returns a dict with:
+      - weeks: list of week rows, each row is a list of 7 entries or None
+        Each entry is:
+          { "date": date, "day": int, "minutes": int, "hours": float, "bucket": int }
+      - has_data: True if any study minutes exist for the month (up to today)
+      - month_name: e.g. "November"
+      - year: integer year
+      - summary: {
+            "total_minutes", "total_hours",
+            "days_with_study",
+            "avg_minutes_per_study_day", "avg_hours_per_study_day"
+        }
+    """
+    # real_today = "now" (used to enforce the time-to-date cutoff)
+    real_today = date.today()
+
+    # "today" argument is really the anchor month/year selected in the UI.
+    if not today:
+        anchor = real_today
+    else:
+        anchor = today
+
+    year, month = anchor.year, anchor.month
+    first_day = date(year, month, 1)
+
+    # Compute last day of the month
+    if month == 12:
+        next_first = date(year + 1, 1, 1)
+    else:
+        next_first = date(year, month + 1, 1)
+    last_day = next_first - timedelta(days=1)
+
+    # Total study minutes per day across all events
+    minutes_by_day = compute_study_minutes_by_day(
+        events, study_event_type=study_event_type
+    )
+
+    # Apply "to date" cutoff:
+    # - If the whole month is in the future -> no minutes yet.
+    # - If the whole month is in the past -> use the full month.
+    # - If it's the current month -> only count days up to real_today.
+    if real_today < first_day:
+        # Selected month is entirely in the future
+        month_minutes = {}
+    elif real_today > last_day:
+        # Selected month is entirely in the past
+        month_minutes = {
+            d: m for d, m in minutes_by_day.items()
+            if first_day <= d <= last_day
+        }
+    else:
+        # Selected month is the current month
+        month_minutes = {
+            d: m for d, m in minutes_by_day.items()
+            if first_day <= d <= real_today
+        }
+
+    max_minutes = max(month_minutes.values()) if month_minutes else 0
+
+    def bucket_for_minutes(m):
+        if m <= 0 or max_minutes <= 0:
+            return 0
+        ratio = m / max_minutes
+        if ratio <= 0.25:
+            return 1
+        elif ratio <= 0.5:
+            return 2
+        elif ratio <= 0.75:
+            return 3
+        else:
+            return 4
+
+    # Build grid of weeks
+    weeks = []
+    week = []
+
+    # Leading blanks before the first day (Mon=0)
+    first_weekday = first_day.weekday()
+    for _ in range(first_weekday):
+        week.append(None)
+
+    current = first_day
+    while current <= last_day:
+        mins = month_minutes.get(current, 0.0)
+        hours = round(mins / 60.0, 1) if mins > 0 else 0.0
+        entry = {
+            "date": current,
+            "day": current.day,
+            "minutes": int(round(mins)),
+            "hours": hours,
+            "bucket": bucket_for_minutes(mins),
+        }
+        week.append(entry)
+
+        if len(week) == 7:
+            weeks.append(week)
+            week = []
+
+        current += timedelta(days=1)
+
+    # Trailing blanks
+    if week:
+        while len(week) < 7:
+            week.append(None)
+        weeks.append(week)
+
+    # Summary stats (also to date)
+    total_minutes = sum(month_minutes.values()) if month_minutes else 0.0
+    days_with_study = sum(1 for m in month_minutes.values() if m > 0)
+    avg_per_study_day = (total_minutes / days_with_study) if days_with_study else 0.0
+
+    summary = {
+        "total_minutes": int(round(total_minutes)),
+        "total_hours": round(total_minutes / 60.0, 1),
+        "days_with_study": days_with_study,
+        "avg_minutes_per_study_day": round(avg_per_study_day, 1),
+        "avg_hours_per_study_day": round(
+            avg_per_study_day / 60.0, 2
+        ) if days_with_study else 0.0,
+    }
+
+    return {
+        "weeks": weeks,
+        "has_data": bool(month_minutes),
+        "month_name": first_day.strftime("%B"),
+        "year": year,
+        "summary": summary,
+    }

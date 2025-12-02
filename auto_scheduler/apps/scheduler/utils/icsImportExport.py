@@ -113,6 +113,7 @@ def import_ics(file_path): # TODO: modify to import into database
 def categorize_event(event):
     """
     Categorizes an event based on its name or description. Then, appends the category to the event dictionary.
+    Note: Currently does not save imported categories, as custom categories don't exist yet.
     Parameters:
         event: Dict of event to categorize.
     Returns:
@@ -159,6 +160,8 @@ def categorize_event(event):
         elif 8 <= start_hour <= 22 and recurrence and duration_hours and duration_hours >= 2:
             event["event_type"] = EventType.WORK.value
 
+    else:
+        event["event_type"] = EventType.OTHER.value
     # Priority Heuristics
     # Only set if not already set elsewhere (e.g., user-edited later)
     if not event.get("priority"):
