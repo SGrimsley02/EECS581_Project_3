@@ -522,6 +522,8 @@ def delete_event(request, event_id):
             updated_events = [ev for ev in scheduled_events if str(ev.get("uid")) != str(event_id)]
             request.session[SESSION_SCHEDULED_EVENTS] = updated_events
             request.session.modified = True
+            calendar = request.user.calendars.first()
+            _save_scheduled_events_to_db(updated_events, calendar)
 
             return JsonResponse({'status': 'success'})
     return JsonResponse({'status': 'failed'}, status=400)
@@ -558,6 +560,8 @@ def edit_event(request, event_id):
                     ev["end"] = new_end
                 break
         request.session[SESSION_SCHEDULED_EVENTS] = scheduled_events
+        calendar = request.user.calendars.first()
+        _save_scheduled_events_to_db(scheduled_events, calendar)
         request.session.modified = True
         return JsonResponse({'status': 'success'})
     return JsonResponse({'status': 'failed'}, status=400)
